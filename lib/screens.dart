@@ -13,16 +13,18 @@ class _LoginScreenState extends State<LoginScreen> {
   final _centre = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
+  String _type = 'tuition';
 
   @override
   void initState() {
     super.initState();
     _centre.text = widget.store.centreName;
+    _type = widget.store.centreType;
   }
 
   void _login() {
     final name = _centre.text.trim().isEmpty ? 'My Centre' : _centre.text.trim();
-    widget.store.setCentre(name);
+    widget.store.setCentre(name, _type);
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => HomeScreen(store: widget.store)),
     );
@@ -45,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
               const Icon(Icons.school, size: 72, color: Color(0xFF1F4E79)),
               const SizedBox(height: 12),
               const Text('MySaathi',
@@ -54,16 +56,38 @@ class _LoginScreenState extends State<LoginScreen> {
                       fontSize: 30,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF1F4E79))),
-              const Text('Manage your centre - students, attendance and fees',
+              const Text('Manage your centre - people, attendance and fees',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.black54)),
-              const SizedBox(height: 32),
+              const SizedBox(height: 4),
+              Text('Version $appVersion',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12, color: Colors.black45)),
+              const SizedBox(height: 24),
               TextField(
                 controller: _centre,
                 decoration: const InputDecoration(
                     labelText: 'Centre Name',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.store)),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _type,
+                decoration: const InputDecoration(
+                    labelText: 'Business Type',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.category)),
+                items: const [
+                  DropdownMenuItem(
+                      value: 'tuition', child: Text('Tuition / Coaching')),
+                  DropdownMenuItem(value: 'gym', child: Text('Gym / Fitness')),
+                  DropdownMenuItem(
+                      value: 'clinic', child: Text('Clinic / Doctor')),
+                  DropdownMenuItem(value: 'shop', child: Text('Shop / Store')),
+                  DropdownMenuItem(value: 'other', child: Text('Other')),
+                ],
+                onChanged: (v) => setState(() => _type = v ?? 'tuition'),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -93,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                  'Step 2 build - your data is saved on this phone. Cloud sync comes next.',
+                  'Step 3 build - choose your business type. Data is saved on this phone.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Colors.black45)),
             ],
@@ -116,6 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
 
   void _addStudent() {
+    final store = widget.store;
     final name = TextEditingController();
     final phone = TextEditingController();
     final batch = TextEditingController();
@@ -123,7 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Add Student'),
+        title: Text('Add ${store.personWord()}'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -137,11 +162,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   decoration: const InputDecoration(labelText: 'Phone')),
               TextField(
                   controller: batch,
-                  decoration: const InputDecoration(labelText: 'Batch / Class')),
+                  decoration:
+                      InputDecoration(labelText: store.groupWord())),
               TextField(
                   controller: fee,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Monthly Fee')),
+                  decoration: InputDecoration(labelText: store.feeWord())),
             ],
           ),
         ),
@@ -154,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
               if (name.text.trim().isEmpty) {
                 return;
               }
-              widget.store.addStudent(Student(
+              store.addStudent(Student(
                 id: DateTime.now().microsecondsSinceEpoch.toString(),
                 name: name.text.trim(),
                 phone: phone.text.trim(),
@@ -192,11 +218,13 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.people), label: 'Students'),
+        destinations: [
           NavigationDestination(
+              icon: const Icon(Icons.people),
+              label: store.personWordPlural()),
+          const NavigationDestination(
               icon: Icon(Icons.check_circle), label: 'Attendance'),
-          NavigationDestination(
+          const NavigationDestination(
               icon: Icon(Icons.currency_rupee), label: 'Fees'),
         ],
       ),
@@ -214,7 +242,8 @@ class StudentsTab extends StatelessWidget {
       animation: store,
       builder: (context, _) {
         if (store.students.isEmpty) {
-          return const Center(child: Text('No students yet. Tap + to add one.'));
+          return Center(
+              child: Text('No ${store.personWordPlural().toLowerCase()} yet. Tap + to add one.'));
         }
         return ListView.builder(
           itemCount: store.students.length,
@@ -225,7 +254,8 @@ class StudentsTab extends StatelessWidget {
                 child: Text(s.name.isEmpty ? '?' : s.name[0].toUpperCase()),
               ),
               title: Text(s.name),
-              subtitle: Text('${s.batch}   -   Rs ${s.fee.toStringAsFixed(0)}/month'),
+              subtitle: Text(
+                  '${s.batch}   -   Rs ${s.fee.toStringAsFixed(0)}'),
               trailing: IconButton(
                 icon: const Icon(Icons.delete_outline),
                 onPressed: () => store.removeStudent(s.id),
@@ -249,7 +279,7 @@ class AttendanceTab extends StatelessWidget {
       animation: store,
       builder: (context, _) {
         if (store.students.isEmpty) {
-          return const Center(child: Text('Add students first.'));
+          return const Center(child: Text('Add people first.'));
         }
         final present =
             store.students.where((s) => store.isPresent(date, s.id)).length;
@@ -257,7 +287,7 @@ class AttendanceTab extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.all(12),
-              child: Text('Today: ${present} / ${store.students.length} present',
+              child: Text('Today: $present / ${store.students.length} present',
                   style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
             Expanded(
@@ -292,7 +322,7 @@ class FeesTab extends StatelessWidget {
       animation: store,
       builder: (context, _) {
         if (store.students.isEmpty) {
-          return const Center(child: Text('Add students first.'));
+          return const Center(child: Text('Add people first.'));
         }
         return ListView.builder(
           itemCount: store.students.length,
@@ -302,7 +332,8 @@ class FeesTab extends StatelessWidget {
             final due = s.fee - paid;
             return ListTile(
               title: Text(s.name),
-              subtitle: Text('Fee Rs ${s.fee.toStringAsFixed(0)}   -   Paid Rs ${paid.toStringAsFixed(0)}'),
+              subtitle: Text(
+                  '${store.feeWord()}: Rs ${s.fee.toStringAsFixed(0)}   -   Paid Rs ${paid.toStringAsFixed(0)}'),
               trailing: due <= 0
                   ? const Chip(label: Text('Paid'))
                   : TextButton(

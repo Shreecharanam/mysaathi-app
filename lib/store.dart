@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+const String appVersion = 'v3';
+
 class Student {
   String id;
   String name;
@@ -36,6 +38,7 @@ class Student {
 
 class AppStore extends ChangeNotifier {
   String centreName = '';
+  String centreType = 'tuition';
   final List<Student> students = [];
   final Map<String, List<String>> attendance = {};
   final Map<String, double> payments = {};
@@ -43,6 +46,7 @@ class AppStore extends ChangeNotifier {
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     centreName = prefs.getString('centreName') ?? '';
+    centreType = prefs.getString('centreType') ?? 'tuition';
     final s = prefs.getString('students');
     if (s != null && s.isNotEmpty) {
       for (final e in (jsonDecode(s) as List)) {
@@ -66,6 +70,7 @@ class AppStore extends ChangeNotifier {
   Future<void> save() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('centreName', centreName);
+    await prefs.setString('centreType', centreType);
     await prefs.setString(
         'students', jsonEncode(students.map((e) => e.toJson()).toList()));
     await prefs.setString('attendance', jsonEncode(attendance));
@@ -73,10 +78,42 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setCentre(String name) {
+  void setCentre(String name, String type) {
     centreName = name;
+    centreType = type;
     save();
   }
+
+  String personWord() => switch (centreType) {
+        'gym' => 'Member',
+        'clinic' => 'Patient',
+        'shop' => 'Customer',
+        'other' => 'Person',
+        _ => 'Student',
+      };
+
+  String personWordPlural() => switch (centreType) {
+        'gym' => 'Members',
+        'clinic' => 'Patients',
+        'shop' => 'Customers',
+        'other' => 'People',
+        _ => 'Students',
+      };
+
+  String groupWord() => switch (centreType) {
+        'gym' => 'Plan',
+        'clinic' => 'Case',
+        'shop' => 'Item',
+        'other' => 'Group',
+        _ => 'Batch',
+      };
+
+  String feeWord() => switch (centreType) {
+        'clinic' => 'Fee',
+        'shop' => 'Amount',
+        'other' => 'Amount',
+        _ => 'Monthly Fee',
+      };
 
   void addStudent(Student s) {
     students.add(s);
@@ -90,7 +127,8 @@ class AppStore extends ChangeNotifier {
 
   String monthKey(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}';
 
-  String todayKey(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  String todayKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   bool isPresent(String date, String studentId) =>
       (attendance[date] ?? <String>[]).contains(studentId);
@@ -106,10 +144,10 @@ class AppStore extends ChangeNotifier {
   }
 
   double paidFor(String studentId, String month) =>
-      payments['${studentId}|${month}'] ?? 0;
+      payments['$studentId|$month'] ?? 0;
 
   void setPaid(String studentId, String month, double amount) {
-    payments['${studentId}|${month}'] = amount;
+    payments['$studentId|$month'] = amount;
     save();
   }
 }
