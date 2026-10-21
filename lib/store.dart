@@ -2,7 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 
-const String appVersion = 'v8';
+const String appVersion = 'v9';
+
+String stampDate(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
 
 String periodKeyFor(DateTime d, String period) {
   final y = d.year;
@@ -78,6 +81,7 @@ class AppStore extends ChangeNotifier {
   final List<Student> students = [];
   final Map<String, List<String>> attendance = {};
   final Map<String, double> payments = {};
+  final Map<String, List<Map<String, String>>> notes = {};
   final Map<String, dynamic> accounts = {};
 
   File? _file;
@@ -125,6 +129,7 @@ class AppStore extends ChangeNotifier {
     students.clear();
     attendance.clear();
     payments.clear();
+    notes.clear();
     final d = accounts[accountKey];
     if (d is Map) {
       centreName = (d['centreName'] ?? '') as String;
@@ -139,6 +144,13 @@ class AppStore extends ChangeNotifier {
       });
       ((d['payments'] ?? {}) as Map).forEach((k, v) {
         payments[k as String] = (v as num).toDouble();
+      });
+      ((d['notes'] ?? {}) as Map).forEach((k, v) {
+        final list = <Map<String, String>>[];
+        for (final e in (v as List)) {
+          list.add(Map<String, String>.from(e as Map));
+        }
+        notes[k.toString()] = list;
       });
     }
   }
@@ -179,6 +191,7 @@ class AppStore extends ChangeNotifier {
           'students': students.map((e) => e.toJson()).toList(),
           'attendance': attendance,
           'payments': payments,
+          'notes': notes,
         };
       }
       final f = await dataFile();
@@ -204,6 +217,7 @@ class AppStore extends ChangeNotifier {
       students.clear();
       attendance.clear();
       payments.clear();
+      notes.clear();
     }
     save();
   }
@@ -217,6 +231,7 @@ class AppStore extends ChangeNotifier {
     students.clear();
     attendance.clear();
     payments.clear();
+    notes.clear();
     save();
   }
 
@@ -257,6 +272,8 @@ class AppStore extends ChangeNotifier {
         _ => 'Monthly Fee',
       };
 
+  bool get isClinic => centreType == 'clinic';
+
   void addStudent(Student s) {
     students.add(s);
     save();
@@ -264,6 +281,7 @@ class AppStore extends ChangeNotifier {
 
   void removeStudent(String id) {
     students.removeWhere((s) => s.id == id);
+    notes.remove(id);
     save();
   }
 
@@ -286,5 +304,22 @@ class AppStore extends ChangeNotifier {
   void setPaid(String studentId, String periodKey, double amount) {
     payments['$studentId|$periodKey'] = amount;
     save();
+  }
+
+  List<Map<String, String>> notesFor(String studentId) =>
+      notes[studentId] ?? <Map<String, String>>[];
+
+  void addNote(String studentId, String text) {
+    final list = notes.putIfAbsent(studentId, () => <Map<String, String>>[]);
+    list.insert(0, {'date': stampDate(DateTime.now()), 'text': text});
+    save();
+  }
+
+  void removeNote(String studentId, int index) {
+    final list = notes[studentId];
+    if (list != null && index >= 0 && index < list.length) {
+      list.removeAt(index);
+      save();
+    }
   }
 }
