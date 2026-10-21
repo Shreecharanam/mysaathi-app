@@ -88,10 +88,9 @@ class AppStore extends ChangeNotifier {
     save();
   }
 
-  String monthKey(DateTime d) => '\${d.year}-\${d.month.toString().padLeft(2, '0')}';
+  String monthKey(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}';
 
-  String todayKey(DateTime d) =>
-      '\${d.year}-\${d.month.toString().padLeft(2, '0')}-\${d.day.toString().padLeft(2, '0')}';
+  String todayKey(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   bool isPresent(String date, String studentId) =>
       (attendance[date] ?? <String>[]).contains(studentId);
@@ -107,10 +106,10 @@ class AppStore extends ChangeNotifier {
   }
 
   double paidFor(String studentId, String month) =>
-      payments['\$studentId|\$month'] ?? 0;
+      payments['${studentId}|${month}'] ?? 0;
 
   void setPaid(String studentId, String month, double amount) {
-    payments['\$studentId|\$month'] = amount;
+    payments['${studentId}|${month}'] = amount;
     save();
   }
 }

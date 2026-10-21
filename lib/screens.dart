@@ -225,8 +225,7 @@ class StudentsTab extends StatelessWidget {
                 child: Text(s.name.isEmpty ? '?' : s.name[0].toUpperCase()),
               ),
               title: Text(s.name),
-              subtitle: Text(
-                  '\${s.batch}   -   Rs \${s.fee.toStringAsFixed(0)}/month'),
+              subtitle: Text('${s.batch}   -   Rs ${s.fee.toStringAsFixed(0)}/month'),
               trailing: IconButton(
                 icon: const Icon(Icons.delete_outline),
                 onPressed: () => store.removeStudent(s.id),
@@ -258,8 +257,7 @@ class AttendanceTab extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.all(12),
-              child: Text(
-                  'Today: \$present / \${store.students.length} present',
+              child: Text('Today: ${present} / ${store.students.length} present',
                   style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
             Expanded(
@@ -304,13 +302,12 @@ class FeesTab extends StatelessWidget {
             final due = s.fee - paid;
             return ListTile(
               title: Text(s.name),
-              subtitle: Text(
-                  'Fee Rs \${s.fee.toStringAsFixed(0)}   -   Paid Rs \${paid.toStringAsFixed(0)}'),
+              subtitle: Text('Fee Rs ${s.fee.toStringAsFixed(0)}   -   Paid Rs ${paid.toStringAsFixed(0)}'),
               trailing: due <= 0
                   ? const Chip(label: Text('Paid'))
                   : TextButton(
                       onPressed: () => store.setPaid(s.id, month, s.fee),
-                      child: Text('Rs \${due.toStringAsFixed(0)} due'),
+                      child: Text('Rs ${due.toStringAsFixed(0)} due'),
                     ),
             );
           },
