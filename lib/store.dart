@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const String appVersion = 'v3';
+const String appVersion = 'v4';
 
 class Student {
   String id;
@@ -44,38 +44,48 @@ class AppStore extends ChangeNotifier {
   final Map<String, double> payments = {};
 
   Future<void> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    centreName = prefs.getString('centreName') ?? '';
-    centreType = prefs.getString('centreType') ?? 'tuition';
-    final s = prefs.getString('students');
-    if (s != null && s.isNotEmpty) {
-      for (final e in (jsonDecode(s) as List)) {
-        students.add(Student.fromJson(Map<String, dynamic>.from(e as Map)));
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      centreName = prefs.getString('centreName') ?? '';
+      centreType = prefs.getString('centreType') ?? 'tuition';
+      final s = prefs.getString('students');
+      if (s != null && s.isNotEmpty) {
+        for (final e in (jsonDecode(s) as List)) {
+          students.add(Student.fromJson(Map<String, dynamic>.from(e as Map)));
+        }
       }
+      final a = prefs.getString('attendance');
+      if (a != null && a.isNotEmpty) {
+        (jsonDecode(a) as Map).forEach((k, v) {
+          attendance[k as String] =
+              (v as List).map((x) => x as String).toList();
+        });
+      }
+      final p = prefs.getString('payments');
+      if (p != null && p.isNotEmpty) {
+        (jsonDecode(p) as Map).forEach((k, v) {
+          payments[k as String] = (v as num).toDouble();
+        });
+      }
+    } catch (e) {
+      // start with whatever was loaded
     }
-    final a = prefs.getString('attendance');
-    if (a != null && a.isNotEmpty) {
-      (jsonDecode(a) as Map).forEach((k, v) {
-        attendance[k as String] = (v as List).map((x) => x as String).toList();
-      });
-    }
-    final p = prefs.getString('payments');
-    if (p != null && p.isNotEmpty) {
-      (jsonDecode(p) as Map).forEach((k, v) {
-        payments[k as String] = (v as num).toDouble();
-      });
-    }
+    notifyListeners();
   }
 
   Future<void> save() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('centreName', centreName);
-    await prefs.setString('centreType', centreType);
-    await prefs.setString(
-        'students', jsonEncode(students.map((e) => e.toJson()).toList()));
-    await prefs.setString('attendance', jsonEncode(attendance));
-    await prefs.setString('payments', jsonEncode(payments));
     notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('centreName', centreName);
+      await prefs.setString('centreType', centreType);
+      await prefs.setString(
+          'students', jsonEncode(students.map((e) => e.toJson()).toList()));
+      await prefs.setString('attendance', jsonEncode(attendance));
+      await prefs.setString('payments', jsonEncode(payments));
+    } catch (e) {
+      // ignore save errors
+    }
   }
 
   void setCentre(String name, String type) {

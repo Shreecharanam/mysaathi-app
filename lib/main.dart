@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'store.dart';
 import 'screens.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
   final store = AppStore();
-  await store.load();
   runApp(MySaathiApp(store: store));
+  store.load();
 }
 
 class MySaathiApp extends StatelessWidget {
