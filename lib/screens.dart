@@ -31,10 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _login() {
     final name = _centre.text.trim().isEmpty ? 'My Centre' : _centre.text.trim();
-    widget.store.setCentre(name, _type);
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => HomeScreen(store: widget.store)),
-    );
+    widget.store.login(name, _type);
   }
 
   @override
@@ -81,7 +78,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     padding: const EdgeInsets.only(top: 6),
                     child: Text('Storage problem: $err',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 11, color: Colors.red)),
+                        style:
+                            const TextStyle(fontSize: 11, color: Colors.red)),
                   );
                 },
               ),
@@ -90,6 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 controller: _centre,
                 decoration: const InputDecoration(
                     labelText: 'Centre Name',
+                    helperText: 'Each centre name keeps its own separate data',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.store)),
               ),
@@ -139,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                  'Step 5 build - join date, attendance calendar, back button and saving fixed.',
+                  'Step 6 build - separate data per centre, fee period, back button fixed.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Colors.black45)),
             ],
@@ -168,6 +167,28 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _switchAccount() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Switch account?'),
+        content:
+            const Text('This returns to the login screen. Your data is saved.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Switch')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      widget.store.logout();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = widget.store;
@@ -180,6 +201,10 @@ class _HomeScreenState extends State<HomeScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) {
+          return;
+        }
+        if (_index != 0) {
+          setState(() => _index = 0);
           return;
         }
         final exit = await showDialog<bool>(
@@ -206,6 +231,13 @@ class _HomeScreenState extends State<HomeScreen> {
           title: Text(store.centreName.isEmpty ? 'MySaathi' : store.centreName),
           backgroundColor: const Color(0xFF1F4E79),
           foregroundColor: Colors.white,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.switch_account),
+              tooltip: 'Switch account',
+              onPressed: _switchAccount,
+            ),
+          ],
         ),
         body: pages[_index],
         floatingActionButton: _index == 0
@@ -244,6 +276,7 @@ class _AddPersonDialogState extends State<AddPersonDialog> {
   final batch = TextEditingController();
   final fee = TextEditingController();
   DateTime join = DateTime.now();
+  String period = 'monthly';
 
   @override
   void dispose() {
@@ -290,6 +323,20 @@ class _AddPersonDialogState extends State<AddPersonDialog> {
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(labelText: store.feeWord())),
             const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: period,
+              decoration: const InputDecoration(labelText: 'Fee Period'),
+              items: const [
+                DropdownMenuItem(value: 'monthly', child: Text('Monthly')),
+                DropdownMenuItem(value: 'quarterly', child: Text('Quarterly')),
+                DropdownMenuItem(
+                    value: 'half', child: Text('Half-Yearly (twice a year)')),
+                DropdownMenuItem(value: 'yearly', child: Text('Yearly')),
+                DropdownMenuItem(value: 'once', child: Text('One-time')),
+              ],
+              onChanged: (v) => setState(() => period = v ?? 'monthly'),
+            ),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(child: Text('Join Date: ${fmtDate(join)}')),
@@ -319,6 +366,7 @@ class _AddPersonDialogState extends State<AddPersonDialog> {
               batch: batch.text.trim(),
               fee: double.tryParse(fee.text.trim()) ?? 0,
               joinDate: fmtDate(join),
+              feePeriod: period,
             ));
             Navigator.pop(context);
           },
@@ -353,7 +401,7 @@ class StudentsTab extends StatelessWidget {
               ),
               title: Text(s.name),
               subtitle: Text(
-                  '${s.batch}   -   Rs ${s.fee.toStringAsFixed(0)}   -   Joined ${s.joinDate}'),
+                  '${s.batch}   -   Rs ${s.fee.toStringAsFixed(0)} ${periodLabel(s.feePeriod)}   -   Joined ${s.joinDate}'),
               trailing: IconButton(
                 icon: const Icon(Icons.delete_outline),
                 onPressed: () => store.removeStudent(s.id),
@@ -449,7 +497,6 @@ class FeesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final month = store.monthKey(DateTime.now());
     return AnimatedBuilder(
       animation: store,
       builder: (context, _) {
@@ -460,16 +507,17 @@ class FeesTab extends StatelessWidget {
           itemCount: store.students.length,
           itemBuilder: (context, i) {
             final s = store.students[i];
-            final paid = store.paidFor(s.id, month);
+            final pk = periodKeyFor(DateTime.now(), s.feePeriod);
+            final paid = store.paidFor(s.id, pk);
             final due = s.fee - paid;
             return ListTile(
               title: Text(s.name),
               subtitle: Text(
-                  '${store.feeWord()}: Rs ${s.fee.toStringAsFixed(0)}   -   Paid Rs ${paid.toStringAsFixed(0)}'),
+                  '${periodLabel(s.feePeriod)}: Rs ${s.fee.toStringAsFixed(0)}   -   Paid Rs ${paid.toStringAsFixed(0)}'),
               trailing: due <= 0
                   ? const Chip(label: Text('Paid'))
                   : TextButton(
-                      onPressed: () => store.setPaid(s.id, month, s.fee),
+                      onPressed: () => store.setPaid(s.id, pk, s.fee),
                       child: Text('Rs ${due.toStringAsFixed(0)} due'),
                     ),
             );

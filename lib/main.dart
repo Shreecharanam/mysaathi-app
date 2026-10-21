@@ -22,7 +22,15 @@ class MySaathiApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: const Color(0xFF1F4E79),
       ),
-      home: LoginScreen(store: store),
+      home: AnimatedBuilder(
+        animation: store,
+        builder: (context, _) {
+          if (store.accountKey.isEmpty) {
+            return LoginScreen(store: store);
+          }
+          return HomeScreen(store: store);
+        },
+      ),
     );
   }
 }

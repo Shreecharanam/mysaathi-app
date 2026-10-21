@@ -2,7 +2,31 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 
-const String appVersion = 'v5';
+const String appVersion = 'v6';
+
+String periodKeyFor(DateTime d, String period) {
+  final y = d.year;
+  switch (period) {
+    case 'yearly':
+      return '$y';
+    case 'half':
+      return '$y-H${d.month <= 6 ? 1 : 2}';
+    case 'quarterly':
+      return '$y-Q${((d.month - 1) ~/ 3) + 1}';
+    case 'once':
+      return 'once';
+    default:
+      return '$y-${d.month.toString().padLeft(2, '0')}';
+  }
+}
+
+String periodLabel(String p) => switch (p) {
+      'yearly' => 'Yearly',
+      'half' => 'Half-Yearly',
+      'quarterly' => 'Quarterly',
+      'once' => 'One-time',
+      _ => 'Monthly',
+    };
 
 class Student {
   String id;
@@ -11,6 +35,7 @@ class Student {
   String batch;
   double fee;
   String joinDate;
+  String feePeriod;
 
   Student({
     required this.id,
@@ -19,6 +44,7 @@ class Student {
     this.batch = '',
     this.fee = 0,
     this.joinDate = '',
+    this.feePeriod = 'monthly',
   });
 
   Map<String, dynamic> toJson() => {
@@ -28,6 +54,7 @@ class Student {
         'batch': batch,
         'fee': fee,
         'joinDate': joinDate,
+        'feePeriod': feePeriod,
       };
 
   factory Student.fromJson(Map<String, dynamic> j) => Student(
@@ -37,16 +64,19 @@ class Student {
         batch: (j['batch'] ?? '') as String,
         fee: ((j['fee'] ?? 0) as num).toDouble(),
         joinDate: (j['joinDate'] ?? '') as String,
+        feePeriod: (j['feePeriod'] ?? 'monthly') as String,
       );
 }
 
 class AppStore extends ChangeNotifier {
+  String accountKey = '';
   String centreName = '';
   String centreType = 'tuition';
   String? storageError;
   final List<Student> students = [];
   final Map<String, List<String>> attendance = {};
   final Map<String, double> payments = {};
+  final Map<String, dynamic> accounts = {};
 
   File? _file;
 
@@ -89,28 +119,47 @@ class AppStore extends ChangeNotifier {
     return null;
   }
 
+  void pullActive() {
+    students.clear();
+    attendance.clear();
+    payments.clear();
+    final d = accounts[accountKey];
+    if (d is Map) {
+      centreName = (d['centreName'] ?? '') as String;
+      centreType = (d['centreType'] ?? 'tuition') as String;
+      for (final e in ((d['students'] ?? []) as List)) {
+        students.add(Student.fromJson(Map<String, dynamic>.from(e as Map)));
+      }
+      ((d['attendance'] ?? {}) as Map).forEach((k, v) {
+        attendance[k as String] = (v as List).map((x) => x as String).toList();
+      });
+      ((d['payments'] ?? {}) as Map).forEach((k, v) {
+        payments[k as String] = (v as num).toDouble();
+      });
+    }
+  }
+
   Future<void> load() async {
     try {
       final f = await dataFile();
       if (f != null && f.existsSync()) {
         final txt = f.readAsStringSync();
         if (txt.trim().isNotEmpty) {
-          final m = jsonDecode(txt) as Map<String, dynamic>;
-          centreName = (m['centreName'] ?? '') as String;
-          centreType = (m['centreType'] ?? 'tuition') as String;
-          students.clear();
-          for (final e in ((m['students'] ?? []) as List)) {
-            students.add(Student.fromJson(Map<String, dynamic>.from(e as Map)));
+          final m = jsonDecode(txt);
+          if (m is Map && m['accounts'] is Map) {
+            accounts.clear();
+            (m['accounts'] as Map).forEach((k, v) => accounts[k.toString()] = v);
+            final last = (m['last'] ?? '').toString();
+            if (last.isNotEmpty && accounts.containsKey(last)) {
+              accountKey = last;
+              pullActive();
+            }
+          } else if (m is Map && m.containsKey('centreName')) {
+            accounts.clear();
+            accounts['default'] = m;
+            accountKey = 'default';
+            pullActive();
           }
-          attendance.clear();
-          ((m['attendance'] ?? {}) as Map).forEach((k, v) {
-            attendance[k as String] =
-                (v as List).map((x) => x as String).toList();
-          });
-          payments.clear();
-          ((m['payments'] ?? {}) as Map).forEach((k, v) {
-            payments[k as String] = (v as num).toDouble();
-          });
         }
       }
     } catch (e) {
@@ -122,26 +171,47 @@ class AppStore extends ChangeNotifier {
   Future<void> save() async {
     notifyListeners();
     try {
+      if (accountKey.isNotEmpty) {
+        accounts[accountKey] = {
+          'centreName': centreName,
+          'centreType': centreType,
+          'students': students.map((e) => e.toJson()).toList(),
+          'attendance': attendance,
+          'payments': payments,
+        };
+      }
       final f = await dataFile();
       if (f == null) {
         return;
       }
-      final m = <String, dynamic>{
-        'centreName': centreName,
-        'centreType': centreType,
-        'students': students.map((e) => e.toJson()).toList(),
-        'attendance': attendance,
-        'payments': payments,
-      };
-      f.writeAsStringSync(jsonEncode(m));
+      f.writeAsStringSync(jsonEncode({'last': accountKey, 'accounts': accounts}));
     } catch (e) {
       storageError = e.toString();
     }
   }
 
-  void setCentre(String name, String type) {
-    centreName = name;
-    centreType = type;
+  void login(String name, String type) {
+    final key = name.trim().toLowerCase();
+    accountKey = key;
+    if (accounts[key] is Map) {
+      pullActive();
+    } else {
+      centreName = name;
+      centreType = type;
+      students.clear();
+      attendance.clear();
+      payments.clear();
+    }
+    save();
+  }
+
+  void logout() {
+    accountKey = '';
+    centreName = '';
+    centreType = 'tuition';
+    students.clear();
+    attendance.clear();
+    payments.clear();
     save();
   }
 
@@ -186,8 +256,6 @@ class AppStore extends ChangeNotifier {
     save();
   }
 
-  String monthKey(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}';
-
   bool isPresent(String date, String studentId) =>
       (attendance[date] ?? <String>[]).contains(studentId);
 
@@ -201,11 +269,11 @@ class AppStore extends ChangeNotifier {
     save();
   }
 
-  double paidFor(String studentId, String month) =>
-      payments['$studentId|$month'] ?? 0;
+  double paidFor(String studentId, String periodKey) =>
+      payments['$studentId|$periodKey'] ?? 0;
 
-  void setPaid(String studentId, String month, double amount) {
-    payments['$studentId|$month'] = amount;
+  void setPaid(String studentId, String periodKey, double amount) {
+    payments['$studentId|$periodKey'] = amount;
     save();
   }
 }
