@@ -1,5 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'store.dart';
+
+String fmtDate(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
+
+String isoDate(DateTime d) =>
+    '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
 class LoginScreen extends StatefulWidget {
   final AppStore store;
@@ -63,7 +70,22 @@ class _LoginScreenState extends State<LoginScreen> {
               Text('Version $appVersion',
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 12, color: Colors.black45)),
-              const SizedBox(height: 24),
+              AnimatedBuilder(
+                animation: widget.store,
+                builder: (context, _) {
+                  final err = widget.store.storageError;
+                  if (err == null) {
+                    return const SizedBox(height: 0);
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text('Storage problem: $err',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 11, color: Colors.red)),
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
               TextField(
                 controller: _centre,
                 decoration: const InputDecoration(
@@ -117,7 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                  'Step 3 build - choose your business type. Data is saved on this phone.',
+                  'Step 5 build - join date, attendance calendar, back button and saving fixed.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Colors.black45)),
             ],
@@ -140,59 +162,9 @@ class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
 
   void _addStudent() {
-    final store = widget.store;
-    final name = TextEditingController();
-    final phone = TextEditingController();
-    final batch = TextEditingController();
-    final fee = TextEditingController();
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Add ${store.personWord()}'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                  controller: name,
-                  decoration: const InputDecoration(labelText: 'Name')),
-              TextField(
-                  controller: phone,
-                  keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Phone')),
-              TextField(
-                  controller: batch,
-                  decoration:
-                      InputDecoration(labelText: store.groupWord())),
-              TextField(
-                  controller: fee,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(labelText: store.feeWord())),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () {
-              if (name.text.trim().isEmpty) {
-                return;
-              }
-              store.addStudent(Student(
-                id: DateTime.now().microsecondsSinceEpoch.toString(),
-                name: name.text.trim(),
-                phone: phone.text.trim(),
-                batch: batch.text.trim(),
-                fee: double.tryParse(fee.text.trim()) ?? 0,
-              ));
-              Navigator.pop(ctx);
-            },
-            child: const Text('Add'),
-          ),
-        ],
-      ),
+      builder: (_) => AddPersonDialog(store: widget.store),
     );
   }
 
@@ -204,30 +176,155 @@ class _HomeScreenState extends State<HomeScreen> {
       AttendanceTab(store: store),
       FeesTab(store: store),
     ];
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(store.centreName.isEmpty ? 'MySaathi' : store.centreName),
-        backgroundColor: const Color(0xFF1F4E79),
-        foregroundColor: Colors.white,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) {
+          return;
+        }
+        final exit = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Exit MySaathi?'),
+            content: const Text('Do you want to close the app?'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel')),
+              FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Exit')),
+            ],
+          ),
+        );
+        if (exit == true) {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(store.centreName.isEmpty ? 'MySaathi' : store.centreName),
+          backgroundColor: const Color(0xFF1F4E79),
+          foregroundColor: Colors.white,
+        ),
+        body: pages[_index],
+        floatingActionButton: _index == 0
+            ? FloatingActionButton(
+                onPressed: _addStudent, child: const Icon(Icons.add))
+            : null,
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _index,
+          onDestinationSelected: (i) => setState(() => _index = i),
+          destinations: [
+            NavigationDestination(
+                icon: const Icon(Icons.people),
+                label: store.personWordPlural()),
+            const NavigationDestination(
+                icon: Icon(Icons.check_circle), label: 'Attendance'),
+            const NavigationDestination(
+                icon: Icon(Icons.currency_rupee), label: 'Fees'),
+          ],
+        ),
       ),
-      body: pages[_index],
-      floatingActionButton: _index == 0
-          ? FloatingActionButton(
-              onPressed: _addStudent, child: const Icon(Icons.add))
-          : null,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: [
-          NavigationDestination(
-              icon: const Icon(Icons.people),
-              label: store.personWordPlural()),
-          const NavigationDestination(
-              icon: Icon(Icons.check_circle), label: 'Attendance'),
-          const NavigationDestination(
-              icon: Icon(Icons.currency_rupee), label: 'Fees'),
-        ],
+    );
+  }
+}
+
+class AddPersonDialog extends StatefulWidget {
+  final AppStore store;
+  const AddPersonDialog({super.key, required this.store});
+
+  @override
+  State<AddPersonDialog> createState() => _AddPersonDialogState();
+}
+
+class _AddPersonDialogState extends State<AddPersonDialog> {
+  final name = TextEditingController();
+  final phone = TextEditingController();
+  final batch = TextEditingController();
+  final fee = TextEditingController();
+  DateTime join = DateTime.now();
+
+  @override
+  void dispose() {
+    name.dispose();
+    phone.dispose();
+    batch.dispose();
+    fee.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickJoinDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: join,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() => join = picked);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final store = widget.store;
+    return AlertDialog(
+      title: Text('Add ${store.personWord()}'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+                controller: name,
+                decoration: const InputDecoration(labelText: 'Name')),
+            TextField(
+                controller: phone,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: 'Phone')),
+            TextField(
+                controller: batch,
+                decoration: InputDecoration(labelText: store.groupWord())),
+            TextField(
+                controller: fee,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(labelText: store.feeWord())),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(child: Text('Join Date: ${fmtDate(join)}')),
+                TextButton.icon(
+                  onPressed: _pickJoinDate,
+                  icon: const Icon(Icons.calendar_month),
+                  label: const Text('Pick'),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel')),
+        FilledButton(
+          onPressed: () {
+            if (name.text.trim().isEmpty) {
+              return;
+            }
+            store.addStudent(Student(
+              id: DateTime.now().microsecondsSinceEpoch.toString(),
+              name: name.text.trim(),
+              phone: phone.text.trim(),
+              batch: batch.text.trim(),
+              fee: double.tryParse(fee.text.trim()) ?? 0,
+              joinDate: fmtDate(join),
+            ));
+            Navigator.pop(context);
+          },
+          child: const Text('Add'),
+        ),
+      ],
     );
   }
 }
@@ -243,7 +340,8 @@ class StudentsTab extends StatelessWidget {
       builder: (context, _) {
         if (store.students.isEmpty) {
           return Center(
-              child: Text('No ${store.personWordPlural().toLowerCase()} yet. Tap + to add one.'));
+              child: Text(
+                  'No ${store.personWordPlural().toLowerCase()} yet. Tap + to add one.'));
         }
         return ListView.builder(
           itemCount: store.students.length,
@@ -255,7 +353,7 @@ class StudentsTab extends StatelessWidget {
               ),
               title: Text(s.name),
               subtitle: Text(
-                  '${s.batch}   -   Rs ${s.fee.toStringAsFixed(0)}'),
+                  '${s.batch}   -   Rs ${s.fee.toStringAsFixed(0)}   -   Joined ${s.joinDate}'),
               trailing: IconButton(
                 icon: const Icon(Icons.delete_outline),
                 onPressed: () => store.removeStudent(s.id),
@@ -268,42 +366,76 @@ class StudentsTab extends StatelessWidget {
   }
 }
 
-class AttendanceTab extends StatelessWidget {
+class AttendanceTab extends StatefulWidget {
   final AppStore store;
   const AttendanceTab({super.key, required this.store});
 
   @override
+  State<AttendanceTab> createState() => _AttendanceTabState();
+}
+
+class _AttendanceTabState extends State<AttendanceTab> {
+  DateTime date = DateTime.now();
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: date,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() => date = picked);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final date = store.todayKey(DateTime.now());
+    final store = widget.store;
+    final key = isoDate(date);
     return AnimatedBuilder(
       animation: store,
       builder: (context, _) {
-        if (store.students.isEmpty) {
-          return const Center(child: Text('Add people first.'));
-        }
-        final present =
-            store.students.where((s) => store.isPresent(date, s.id)).length;
         return Column(
           children: [
             Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text('Today: $present / ${store.students.length} present',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-            ),
-            Expanded(
-              child: ListView.builder(
-                itemCount: store.students.length,
-                itemBuilder: (context, i) {
-                  final s = store.students[i];
-                  return CheckboxListTile(
-                    value: store.isPresent(date, s.id),
-                    onChanged: (_) => store.toggleAttendance(date, s.id),
-                    title: Text(s.name),
-                    subtitle: Text(s.batch),
-                  );
-                },
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text('Date: ${fmtDate(date)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                  TextButton.icon(
+                    onPressed: _pickDate,
+                    icon: const Icon(Icons.calendar_month),
+                    label: const Text('Pick date'),
+                  ),
+                ],
               ),
             ),
+            if (store.students.isEmpty)
+              const Expanded(
+                  child: Center(child: Text('Add people first.')))
+            else ...[
+              Text(
+                  'Present: ${store.students.where((s) => store.isPresent(key, s.id)).length} / ${store.students.length}',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: store.students.length,
+                  itemBuilder: (context, i) {
+                    final s = store.students[i];
+                    return CheckboxListTile(
+                      value: store.isPresent(key, s.id),
+                      onChanged: (_) => store.toggleAttendance(key, s.id),
+                      title: Text(s.name),
+                      subtitle: Text(s.batch),
+                    );
+                  },
+                ),
+              ),
+            ],
           ],
         );
       },

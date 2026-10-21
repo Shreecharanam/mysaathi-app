@@ -1,8 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-const String appVersion = 'v4';
+const String appVersion = 'v5';
 
 class Student {
   String id;
@@ -10,6 +10,7 @@ class Student {
   String phone;
   String batch;
   double fee;
+  String joinDate;
 
   Student({
     required this.id,
@@ -17,6 +18,7 @@ class Student {
     this.phone = '',
     this.batch = '',
     this.fee = 0,
+    this.joinDate = '',
   });
 
   Map<String, dynamic> toJson() => {
@@ -25,6 +27,7 @@ class Student {
         'phone': phone,
         'batch': batch,
         'fee': fee,
+        'joinDate': joinDate,
       };
 
   factory Student.fromJson(Map<String, dynamic> j) => Student(
@@ -33,42 +36,85 @@ class Student {
         phone: (j['phone'] ?? '') as String,
         batch: (j['batch'] ?? '') as String,
         fee: ((j['fee'] ?? 0) as num).toDouble(),
+        joinDate: (j['joinDate'] ?? '') as String,
       );
 }
 
 class AppStore extends ChangeNotifier {
   String centreName = '';
   String centreType = 'tuition';
+  String? storageError;
   final List<Student> students = [];
   final Map<String, List<String>> attendance = {};
   final Map<String, double> payments = {};
 
+  File? _file;
+
+  Future<File?> dataFile() async {
+    if (_file != null) {
+      return _file;
+    }
+    final dirs = <String>[
+      '/data/data/com.mysaathi.mysaathi/files',
+      '/data/user/0/com.mysaathi.mysaathi/files',
+    ];
+    for (final p in dirs) {
+      try {
+        final d = Directory(p);
+        if (!d.existsSync()) {
+          d.createSync(recursive: true);
+        }
+        final f = File('${d.path}/mysaathi_data.json');
+        if (!f.existsSync()) {
+          f.writeAsStringSync('{}');
+        }
+        _file = f;
+        storageError = null;
+        return f;
+      } catch (e) {
+        storageError = e.toString();
+      }
+    }
+    try {
+      final d = Directory.systemTemp;
+      final f = File('${d.path}/mysaathi_data.json');
+      if (!f.existsSync()) {
+        f.writeAsStringSync('{}');
+      }
+      _file = f;
+      return f;
+    } catch (e) {
+      storageError = e.toString();
+    }
+    return null;
+  }
+
   Future<void> load() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      centreName = prefs.getString('centreName') ?? '';
-      centreType = prefs.getString('centreType') ?? 'tuition';
-      final s = prefs.getString('students');
-      if (s != null && s.isNotEmpty) {
-        for (final e in (jsonDecode(s) as List)) {
-          students.add(Student.fromJson(Map<String, dynamic>.from(e as Map)));
+      final f = await dataFile();
+      if (f != null && f.existsSync()) {
+        final txt = f.readAsStringSync();
+        if (txt.trim().isNotEmpty) {
+          final m = jsonDecode(txt) as Map<String, dynamic>;
+          centreName = (m['centreName'] ?? '') as String;
+          centreType = (m['centreType'] ?? 'tuition') as String;
+          students.clear();
+          for (final e in ((m['students'] ?? []) as List)) {
+            students.add(Student.fromJson(Map<String, dynamic>.from(e as Map)));
+          }
+          attendance.clear();
+          ((m['attendance'] ?? {}) as Map).forEach((k, v) {
+            attendance[k as String] =
+                (v as List).map((x) => x as String).toList();
+          });
+          payments.clear();
+          ((m['payments'] ?? {}) as Map).forEach((k, v) {
+            payments[k as String] = (v as num).toDouble();
+          });
         }
       }
-      final a = prefs.getString('attendance');
-      if (a != null && a.isNotEmpty) {
-        (jsonDecode(a) as Map).forEach((k, v) {
-          attendance[k as String] =
-              (v as List).map((x) => x as String).toList();
-        });
-      }
-      final p = prefs.getString('payments');
-      if (p != null && p.isNotEmpty) {
-        (jsonDecode(p) as Map).forEach((k, v) {
-          payments[k as String] = (v as num).toDouble();
-        });
-      }
     } catch (e) {
-      // start with whatever was loaded
+      storageError = e.toString();
     }
     notifyListeners();
   }
@@ -76,15 +122,20 @@ class AppStore extends ChangeNotifier {
   Future<void> save() async {
     notifyListeners();
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('centreName', centreName);
-      await prefs.setString('centreType', centreType);
-      await prefs.setString(
-          'students', jsonEncode(students.map((e) => e.toJson()).toList()));
-      await prefs.setString('attendance', jsonEncode(attendance));
-      await prefs.setString('payments', jsonEncode(payments));
+      final f = await dataFile();
+      if (f == null) {
+        return;
+      }
+      final m = <String, dynamic>{
+        'centreName': centreName,
+        'centreType': centreType,
+        'students': students.map((e) => e.toJson()).toList(),
+        'attendance': attendance,
+        'payments': payments,
+      };
+      f.writeAsStringSync(jsonEncode(m));
     } catch (e) {
-      // ignore save errors
+      storageError = e.toString();
     }
   }
 
@@ -136,9 +187,6 @@ class AppStore extends ChangeNotifier {
   }
 
   String monthKey(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}';
-
-  String todayKey(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   bool isPresent(String date, String studentId) =>
       (attendance[date] ?? <String>[]).contains(studentId);
