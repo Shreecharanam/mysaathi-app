@@ -2,11 +2,63 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'store.dart';
 
+const MethodChannel _launcher = MethodChannel('mysaathi/launch');
+
 String fmtDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
 
 String isoDate(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+String waNumber(String raw) {
+  var d = raw.replaceAll(RegExp('[^0-9]'), '');
+  if (d.length == 10) {
+    d = '91' + d;
+  }
+  return d;
+}
+
+Future<bool> openUrl(String url) async {
+  try {
+    final ok = await _launcher.invokeMethod<bool>('openUrl', {'url': url});
+    return ok ?? false;
+  } catch (e) {
+    return false;
+  }
+}
+
+void _toast(BuildContext context, String msg) {
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+}
+
+Future<void> payUpi(
+    BuildContext context, String upiId, String name, double amount) async {
+  if (upiId.trim().isEmpty) {
+    _toast(context, 'Pehle Settings mein apni UPI ID daalein');
+    return;
+  }
+  final url = 'upi://pay?pa=${Uri.encodeComponent(upiId)}'
+      '&pn=${Uri.encodeComponent(name)}'
+      '&am=${amount.toStringAsFixed(2)}&cu=INR';
+  final ok = await openUrl(url);
+  if (!ok) {
+    _toast(context, 'Koi UPI app nahi mila');
+  }
+}
+
+Future<void> sendWhatsApp(
+    BuildContext context, String phone, String message) async {
+  final n = waNumber(phone);
+  if (n.isEmpty) {
+    _toast(context, 'Is vyakti ka phone number nahi hai');
+    return;
+  }
+  final url = 'https://wa.me/$n?text=${Uri.encodeComponent(message)}';
+  final ok = await openUrl(url);
+  if (!ok) {
+    _toast(context, 'WhatsApp nahi khul paya');
+  }
+}
 
 class LoginScreen extends StatefulWidget {
   final AppStore store;
@@ -138,11 +190,89 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                  'Step 6 build - separate data per centre, fee period, back button fixed.',
+                  'Step 7 build - UPI payment button, WhatsApp message button, settings.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Colors.black45)),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class SettingsScreen extends StatefulWidget {
+  final AppStore store;
+  const SettingsScreen({super.key, required this.store});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  late final TextEditingController upi;
+  late final TextEditingController phone;
+
+  @override
+  void initState() {
+    super.initState();
+    upi = TextEditingController(text: widget.store.upiId);
+    phone = TextEditingController(text: widget.store.centrePhone);
+  }
+
+  @override
+  void dispose() {
+    upi.dispose();
+    phone.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings'),
+        backgroundColor: const Color(0xFF1F4E79),
+        foregroundColor: Colors.white,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: upi,
+              decoration: const InputDecoration(
+                  labelText: 'UPI ID (e.g. yourname@upi)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.qr_code)),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: phone,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                  labelText: 'Centre WhatsApp Number',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.chat)),
+            ),
+            const SizedBox(height: 24),
+            FilledButton(
+              onPressed: () {
+                widget.store.setPayments(upi.text.trim(), phone.text.trim());
+                _toast(context, 'Saved');
+              },
+              style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16)),
+              child: const Text('Save'),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+                'Note: "Pay via UPI" opens the student UPI app with the amount filled. '
+                'Automatic payment confirmation needs a payment gateway. '
+                '"Send WhatsApp" opens WhatsApp with the message ready - you just tap send.',
+                style: TextStyle(fontSize: 12, color: Colors.black54)),
+          ],
         ),
       ),
     );
@@ -232,6 +362,14 @@ class _HomeScreenState extends State<HomeScreen> {
           backgroundColor: const Color(0xFF1F4E79),
           foregroundColor: Colors.white,
           actions: [
+            IconButton(
+              icon: const Icon(Icons.settings),
+              tooltip: 'Settings',
+              onPressed: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => SettingsScreen(store: store)));
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.switch_account),
               tooltip: 'Switch account',
@@ -510,16 +648,37 @@ class FeesTab extends StatelessWidget {
             final pk = periodKeyFor(DateTime.now(), s.feePeriod);
             final paid = store.paidFor(s.id, pk);
             final due = s.fee - paid;
+            final pendingMsg = 'Namaste ${s.name}, ${store.centreName} ki fees '
+                'Rs ${due.toStringAsFixed(0)} pending hai. Kripya UPI se pay karein.'
+                '${store.upiId.isEmpty ? '' : ' UPI ID: ${store.upiId}'} Dhanyavaad.';
+            final paidMsg = 'Namaste ${s.name}, ${store.centreName} ko '
+                'Rs ${paid.toStringAsFixed(0)} fees mil gayi. Dhanyavaad!';
             return ListTile(
               title: Text(s.name),
               subtitle: Text(
-                  '${periodLabel(s.feePeriod)}: Rs ${s.fee.toStringAsFixed(0)}   -   Paid Rs ${paid.toStringAsFixed(0)}'),
-              trailing: due <= 0
-                  ? const Chip(label: Text('Paid'))
-                  : TextButton(
-                      onPressed: () => store.setPaid(s.id, pk, s.fee),
-                      child: Text('Rs ${due.toStringAsFixed(0)} due'),
-                    ),
+                  '${periodLabel(s.feePeriod)}: Rs ${s.fee.toStringAsFixed(0)}   -   Paid Rs ${paid.toStringAsFixed(0)}   -   ${due <= 0 ? 'Paid' : 'Due Rs ${due.toStringAsFixed(0)}'}'),
+              trailing: PopupMenuButton<String>(
+                onSelected: (v) {
+                  if (v == 'upi') {
+                    payUpi(context, store.upiId, store.centreName, due);
+                  } else if (v == 'wa') {
+                    sendWhatsApp(
+                        context, s.phone, due > 0 ? pendingMsg : paidMsg);
+                  } else if (v == 'paid') {
+                    store.setPaid(s.id, pk, s.fee);
+                  }
+                },
+                itemBuilder: (ctx) => [
+                  if (due > 0)
+                    const PopupMenuItem(
+                        value: 'upi', child: Text('Pay via UPI')),
+                  const PopupMenuItem(
+                      value: 'wa', child: Text('Send WhatsApp')),
+                  if (due > 0)
+                    const PopupMenuItem(
+                        value: 'paid', child: Text('Mark as paid')),
+                ],
+              ),
             );
           },
         );

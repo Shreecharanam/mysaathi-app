@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 
-const String appVersion = 'v6';
+const String appVersion = 'v7';
 
 String periodKeyFor(DateTime d, String period) {
   final y = d.year;
@@ -72,6 +72,8 @@ class AppStore extends ChangeNotifier {
   String accountKey = '';
   String centreName = '';
   String centreType = 'tuition';
+  String upiId = '';
+  String centrePhone = '';
   String? storageError;
   final List<Student> students = [];
   final Map<String, List<String>> attendance = {};
@@ -127,6 +129,8 @@ class AppStore extends ChangeNotifier {
     if (d is Map) {
       centreName = (d['centreName'] ?? '') as String;
       centreType = (d['centreType'] ?? 'tuition') as String;
+      upiId = (d['upiId'] ?? '') as String;
+      centrePhone = (d['centrePhone'] ?? '') as String;
       for (final e in ((d['students'] ?? []) as List)) {
         students.add(Student.fromJson(Map<String, dynamic>.from(e as Map)));
       }
@@ -154,11 +158,6 @@ class AppStore extends ChangeNotifier {
               accountKey = last;
               pullActive();
             }
-          } else if (m is Map && m.containsKey('centreName')) {
-            accounts.clear();
-            accounts['default'] = m;
-            accountKey = 'default';
-            pullActive();
           }
         }
       }
@@ -175,6 +174,8 @@ class AppStore extends ChangeNotifier {
         accounts[accountKey] = {
           'centreName': centreName,
           'centreType': centreType,
+          'upiId': upiId,
+          'centrePhone': centrePhone,
           'students': students.map((e) => e.toJson()).toList(),
           'attendance': attendance,
           'payments': payments,
@@ -198,6 +199,8 @@ class AppStore extends ChangeNotifier {
     } else {
       centreName = name;
       centreType = type;
+      upiId = '';
+      centrePhone = '';
       students.clear();
       attendance.clear();
       payments.clear();
@@ -209,9 +212,17 @@ class AppStore extends ChangeNotifier {
     accountKey = '';
     centreName = '';
     centreType = 'tuition';
+    upiId = '';
+    centrePhone = '';
     students.clear();
     attendance.clear();
     payments.clear();
+    save();
+  }
+
+  void setPayments(String upi, String phone) {
+    upiId = upi;
+    centrePhone = phone;
     save();
   }
 

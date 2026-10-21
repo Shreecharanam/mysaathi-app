@@ -29,6 +29,18 @@ jobs:
           flutter create --org com.mysaathi --project-name mysaathi --platforms=android /tmp/scaffold
           cp -r /tmp/scaffold/android ./android
 
+      - name: Apply Android launch bridge
+        run: |
+          echo "MainActivity files found:"
+          find android/app/src/main -name "MainActivity.*" || true
+          DEST=$(find android/app/src/main -name "MainActivity.kt" | head -1)
+          if [ -z "$DEST" ]; then
+            DEST="android/app/src/main/kotlin/com/mysaathi/mysaathi/MainActivity.kt"
+          fi
+          mkdir -p "$(dirname "$DEST")"
+          cp android_patch/MainActivity.kt "$DEST"
+          echo "Wrote $DEST"
+
       - name: Install dependencies
         run: flutter pub get
 
