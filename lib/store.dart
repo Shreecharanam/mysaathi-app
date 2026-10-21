@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 
-const String appVersion = 'v7';
+const String appVersion = 'v8';
 
 String periodKeyFor(DateTime d, String period) {
   final y = d.year;

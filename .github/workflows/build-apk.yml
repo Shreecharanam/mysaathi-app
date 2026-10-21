@@ -24,6 +24,16 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Set up fixed signing key
+        run: |
+          mkdir -p "$HOME/.android"
+          rm -f "$HOME/.android/debug.keystore"
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > /tmp/upload.p12
+          keytool -importkeystore -srckeystore /tmp/upload.p12 -srcstoretype PKCS12 -srcstorepass "${{ secrets.KEYSTORE_PASSWORD }}" -srcalias "${{ secrets.KEY_ALIAS }}" -destkeystore "$HOME/.android/debug.keystore" -deststoretype JKS -deststorepass android -destkeypass android -destalias androiddebugkey -noprompt
+          rm -f /tmp/upload.p12
+          echo "Signing key ready:"
+          keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android | grep -E "Alias name|SHA1:|SHA256:" || true
+
       - name: Generate Android platform files
         run: |
           flutter create --org com.mysaathi --project-name mysaathi --platforms=android /tmp/scaffold
@@ -31,8 +41,6 @@ jobs:
 
       - name: Apply Android launch bridge
         run: |
-          echo "MainActivity files found:"
-          find android/app/src/main -name "MainActivity.*" || true
           DEST=$(find android/app/src/main -name "MainActivity.kt" | head -1)
           if [ -z "$DEST" ]; then
             DEST="android/app/src/main/kotlin/com/mysaathi/mysaathi/MainActivity.kt"
