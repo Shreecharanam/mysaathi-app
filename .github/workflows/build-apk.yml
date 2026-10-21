@@ -26,18 +26,30 @@ jobs:
 
       - name: Set up fixed signing key
         run: |
-          mkdir -p "$HOME/.android"
-          rm -f "$HOME/.android/debug.keystore"
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > /tmp/upload.p12
-          keytool -importkeystore -srckeystore /tmp/upload.p12 -srcstoretype PKCS12 -srcstorepass "${{ secrets.KEYSTORE_PASSWORD }}" -srcalias "${{ secrets.KEY_ALIAS }}" -destkeystore "$HOME/.android/debug.keystore" -deststoretype JKS -deststorepass android -destkeypass android -destalias androiddebugkey -noprompt
+          echo "env: HOME=$HOME ANDROID_USER_HOME=$ANDROID_USER_HOME ANDROID_HOME=$ANDROID_HOME ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          CANDIDATES="$HOME/.android"
+          if [ -n "$ANDROID_USER_HOME" ]; then CANDIDATES="$CANDIDATES $ANDROID_USER_HOME"; fi
+          if [ -n "$ANDROID_HOME" ]; then CANDIDATES="$CANDIDATES $ANDROID_HOME/.android"; fi
+          if [ -n "$ANDROID_SDK_ROOT" ]; then CANDIDATES="$CANDIDATES $ANDROID_SDK_ROOT/.android"; fi
+          for D in $CANDIDATES; do
+            mkdir -p "$D"
+            rm -f "$D/debug.keystore"
+            keytool -importkeystore -srckeystore /tmp/upload.p12 -srcstoretype PKCS12 -srcstorepass "${{ secrets.KEYSTORE_PASSWORD }}" -srcalias "${{ secrets.KEY_ALIAS }}" -destkeystore "$D/debug.keystore" -deststoretype JKS -deststorepass android -destkeypass android -destalias androiddebugkey -noprompt >/dev/null 2>&1
+            echo "wrote $D/debug.keystore"
+          done
           rm -f /tmp/upload.p12
-          echo "Signing key ready:"
-          keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android | grep -E "Alias name|SHA1:|SHA256:" || true
+          echo "--- keystores on runner ---"
+          find / -name "debug.keystore" 2>/dev/null | head -20 || true
 
       - name: Generate Android platform files
         run: |
           flutter create --org com.mysaathi --project-name mysaathi --platforms=android /tmp/scaffold
           cp -r /tmp/scaffold/android ./android
+          echo "--- gradle files ---"
+          ls -la android/app/ | grep -i gradle || true
+          echo "--- signing config in app gradle ---"
+          grep -n -i "signingConfig" android/app/build.gradle* || true
 
       - name: Apply Android launch bridge
         run: |
@@ -54,6 +66,15 @@ jobs:
 
       - name: Build release APK
         run: flutter build apk --release
+
+      - name: Verify APK signature
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | tail -1)
+          echo "apksigner: $APKSIGNER"
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --print-certs build/app/outputs/flutter-apk/app-release.apk || true
+          fi
+          echo "--- expected our key SHA256: F6:26:AD:5F:A2:62:32:BD:B7:BA:7B:78:D8:28:79:AC:18:87:FB:03:F0:36:33:64:A1:99:C7:69:F2:AF:73:35 ---"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
