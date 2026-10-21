@@ -9,7 +9,7 @@ for p in paths:
     if p.endswith('.kts'):
         old = 'signingConfig = signingConfigs.getByName("debug")'
         new = ('signingConfig = signingConfigs.create("mysaathi") { '
-               'storeFile = java.io.File(System.getenv("KS_FILE") ?: ""); '
+               'storeFile = project.file(System.getenv("KS_FILE") ?: ""); '
                'storePassword = System.getenv("KS_PASS") ?: ""; '
                'keyAlias = System.getenv("KS_ALIAS") ?: ""; '
                'keyPassword = System.getenv("KS_PASS") ?: "" }')
