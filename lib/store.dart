@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 
-const String appVersion = 'v9';
+const String appVersion = 'v10';
 
 String stampDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
@@ -73,6 +73,9 @@ class Student {
 
 class AppStore extends ChangeNotifier {
   String accountKey = '';
+  String sessionUid = '';
+  bool firebaseReady = false;
+  String? firebaseError;
   String centreName = '';
   String centreType = 'tuition';
   String upiId = '';
@@ -85,6 +88,10 @@ class AppStore extends ChangeNotifier {
   final Map<String, dynamic> accounts = {};
 
   File? _file;
+
+  void refresh() {
+    notifyListeners();
+  }
 
   Future<File?> dataFile() async {
     if (_file != null) {
@@ -166,8 +173,9 @@ class AppStore extends ChangeNotifier {
             accounts.clear();
             (m['accounts'] as Map).forEach((k, v) => accounts[k.toString()] = v);
             final last = (m['last'] ?? '').toString();
-            if (last.isNotEmpty && accounts.containsKey(last)) {
-              accountKey = last;
+            final restore = sessionUid.isNotEmpty ? sessionUid : last;
+            if (restore.isNotEmpty && accounts.containsKey(restore)) {
+              accountKey = restore;
               pullActive();
             }
           }
@@ -204,9 +212,28 @@ class AppStore extends ChangeNotifier {
     }
   }
 
-  void login(String name, String type) {
+  void loginWithUid(String uid, String name, String type) {
+    accountKey = uid;
+    sessionUid = uid;
+    if (accounts[uid] is Map) {
+      pullActive();
+    } else {
+      centreName = name.isEmpty ? 'My Centre' : name;
+      centreType = type;
+      upiId = '';
+      centrePhone = '';
+      students.clear();
+      attendance.clear();
+      payments.clear();
+      notes.clear();
+    }
+    save();
+  }
+
+  void loginLocal(String name, String type) {
     final key = name.trim().toLowerCase();
     accountKey = key;
+    sessionUid = key;
     if (accounts[key] is Map) {
       pullActive();
     } else {
@@ -224,6 +251,7 @@ class AppStore extends ChangeNotifier {
 
   void logout() {
     accountKey = '';
+    sessionUid = '';
     centreName = '';
     centreType = 'tuition';
     upiId = '';

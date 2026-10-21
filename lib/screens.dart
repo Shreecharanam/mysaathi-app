@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'store.dart';
 
 const MethodChannel _launcher = MethodChannel('mysaathi/launch');
@@ -73,6 +74,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   String _type = 'tuition';
+  bool _busy = false;
 
   @override
   void initState() {
@@ -81,9 +83,48 @@ class _LoginScreenState extends State<LoginScreen> {
     _type = widget.store.centreType;
   }
 
-  void _login() {
+  Future<void> _create() async {
+    final store = widget.store;
     final name = _centre.text.trim().isEmpty ? 'My Centre' : _centre.text.trim();
-    widget.store.login(name, _type);
+    if (!store.firebaseReady) {
+      store.loginLocal(name, _type);
+      return;
+    }
+    if (_email.text.trim().isEmpty || _password.text.length < 6) {
+      _toast(context, 'Email daalein aur password kam se kam 6 akshar ka');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: _email.text.trim(), password: _password.text);
+      store.loginWithUid(cred.user!.uid, name, _type);
+    } catch (e) {
+      if (mounted) _toast(context, 'Account nahi bana: $e');
+    }
+    if (mounted) setState(() => _busy = false);
+  }
+
+  Future<void> _login() async {
+    final store = widget.store;
+    final name = _centre.text.trim().isEmpty ? 'My Centre' : _centre.text.trim();
+    if (!store.firebaseReady) {
+      store.loginLocal(name, _type);
+      return;
+    }
+    if (_email.text.trim().isEmpty || _password.text.isEmpty) {
+      _toast(context, 'Email aur password daalein');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: _email.text.trim(), password: _password.text);
+      store.loginWithUid(cred.user!.uid, name, _type);
+    } catch (e) {
+      if (mounted) _toast(context, 'Login nahi hua: $e');
+    }
+    if (mounted) setState(() => _busy = false);
   }
 
   @override
@@ -103,7 +144,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
               const Icon(Icons.school, size: 72, color: Color(0xFF1F4E79)),
               const SizedBox(height: 12),
               const Text('MySaathi',
@@ -122,29 +163,39 @@ class _LoginScreenState extends State<LoginScreen> {
               AnimatedBuilder(
                 animation: widget.store,
                 builder: (context, _) {
-                  final err = widget.store.storageError;
-                  if (err == null) {
-                    return const SizedBox(height: 0);
+                  final store = widget.store;
+                  final err = store.firebaseError ?? store.storageError;
+                  if (err != null) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text('Problem: $err',
+                          textAlign: TextAlign.center,
+                          style:
+                              const TextStyle(fontSize: 11, color: Colors.red)),
+                    );
                   }
                   return Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: Text('Storage problem: $err',
+                    child: Text(
+                        store.firebaseReady
+                            ? 'Cloud: connected'
+                            : 'Cloud: connecting...',
                         textAlign: TextAlign.center,
-                        style:
-                            const TextStyle(fontSize: 11, color: Colors.red)),
+                        style: const TextStyle(
+                            fontSize: 11, color: Colors.black45)),
                   );
                 },
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
               TextField(
                 controller: _centre,
                 decoration: const InputDecoration(
                     labelText: 'Centre Name',
-                    helperText: 'Each centre name keeps its own separate data',
+                    helperText: 'Har centre ka apna alag data',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.store)),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 value: _type,
                 decoration: const InputDecoration(
@@ -162,7 +213,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
                 onChanged: (v) => setState(() => _type = v ?? 'tuition'),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               TextField(
                 controller: _email,
                 keyboardType: TextInputType.emailAddress,
@@ -171,7 +222,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.email)),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               TextField(
                 controller: _password,
                 obscureText: true,
@@ -180,17 +231,36 @@ class _LoginScreenState extends State<LoginScreen> {
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.lock)),
               ),
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: _login,
-                style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16)),
-                child: const Text('Login / Create Account',
-                    style: TextStyle(fontSize: 16)),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _busy ? null : _login,
+                      style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16)),
+                      child: const Text('Log In'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _busy ? null : _create,
+                      style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16)),
+                      child: const Text('Create Account'),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
+              if (_busy)
+                const Padding(
+                  padding: EdgeInsets.only(top: 14),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              const SizedBox(height: 12),
               const Text(
-                  'Step 9 build - clinic ke liye Description tab (per patient record).',
+                  'Pehli baar: naam, type, email, password daal kar Create Account. Agli baar: app khud yaad rakhegi.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Colors.black45)),
             ],
@@ -301,20 +371,22 @@ class _HomeScreenState extends State<HomeScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Switch account?'),
-        content:
-            const Text('This returns to the login screen. Your data is saved.'),
+        title: const Text('Log out?'),
+        content: const Text('Aap login screen par jaayenge. Aapka data safe rahega.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Cancel')),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Switch')),
+              child: const Text('Log out')),
         ],
       ),
     );
     if (ok == true) {
+      try {
+        await FirebaseAuth.instance.signOut();
+      } catch (_) {}
       widget.store.logout();
     }
   }
@@ -372,8 +444,8 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             IconButton(
-              icon: const Icon(Icons.switch_account),
-              tooltip: 'Switch account',
+              icon: const Icon(Icons.logout),
+              tooltip: 'Log out',
               onPressed: _switchAccount,
             ),
           ],
@@ -590,7 +662,6 @@ class NotesTab extends StatelessWidget {
                     subtitle: Text(list.isEmpty
                         ? 'No description yet - tap to add'
                         : (list.first['text'] ?? '')),
-                    isThreeLine: false,
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
