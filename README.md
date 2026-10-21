@@ -6,7 +6,7 @@ Built with Flutter. One app, many centres.
 
 ## Status
 
-Step 1: a minimal app (login screen) that builds an APK, so the build pipeline is proven before features are added.
+Step 2: working app - students, attendance and fees, saved on the phone.
 
 ## Build
 
