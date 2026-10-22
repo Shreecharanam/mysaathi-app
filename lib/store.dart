@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 
-const String appVersion = 'v10';
+const String appVersion = 'v11';
 
 String stampDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
@@ -246,6 +246,29 @@ class AppStore extends ChangeNotifier {
       payments.clear();
       notes.clear();
     }
+    save();
+  }
+
+  Future<void> clearCentreData() async {
+    students.clear();
+    attendance.clear();
+    payments.clear();
+    notes.clear();
+    save();
+  }
+
+  Future<void> deleteAccount() async {
+    accounts.remove(accountKey);
+    students.clear();
+    attendance.clear();
+    payments.clear();
+    notes.clear();
+    centreName = '';
+    centreType = 'tuition';
+    upiId = '';
+    centrePhone = '';
+    accountKey = '';
+    sessionUid = '';
     save();
   }
 

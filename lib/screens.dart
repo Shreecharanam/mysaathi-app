@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'store.dart';
 
 const MethodChannel _launcher = MethodChannel('mysaathi/launch');
@@ -83,11 +84,40 @@ class _LoginScreenState extends State<LoginScreen> {
     _type = widget.store.centreType;
   }
 
+  String get _name =>
+      _centre.text.trim().isEmpty ? 'My Centre' : _centre.text.trim();
+
+  Future<void> _google() async {
+    final store = widget.store;
+    if (!store.firebaseReady) {
+      _toast(context, 'Cloud abhi ready nahi - thodi der baad try karein');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final gs = GoogleSignIn();
+      final account = await gs.signIn();
+      if (account == null) {
+        if (mounted) setState(() => _busy = false);
+        return;
+      }
+      final auth = await account.authentication;
+      final cred = GoogleAuthProvider.credential(
+        accessToken: auth.accessToken,
+        idToken: auth.idToken,
+      );
+      final uc = await FirebaseAuth.instance.signInWithCredential(cred);
+      store.loginWithUid(uc.user!.uid, _name, _type);
+    } catch (e) {
+      if (mounted) _toast(context, 'Google login nahi hua: $e');
+    }
+    if (mounted) setState(() => _busy = false);
+  }
+
   Future<void> _create() async {
     final store = widget.store;
-    final name = _centre.text.trim().isEmpty ? 'My Centre' : _centre.text.trim();
     if (!store.firebaseReady) {
-      store.loginLocal(name, _type);
+      store.loginLocal(_name, _type);
       return;
     }
     if (_email.text.trim().isEmpty || _password.text.length < 6) {
@@ -98,7 +128,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: _email.text.trim(), password: _password.text);
-      store.loginWithUid(cred.user!.uid, name, _type);
+      store.loginWithUid(cred.user!.uid, _name, _type);
     } catch (e) {
       if (mounted) _toast(context, 'Account nahi bana: $e');
     }
@@ -107,9 +137,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _login() async {
     final store = widget.store;
-    final name = _centre.text.trim().isEmpty ? 'My Centre' : _centre.text.trim();
     if (!store.firebaseReady) {
-      store.loginLocal(name, _type);
+      store.loginLocal(_name, _type);
       return;
     }
     if (_email.text.trim().isEmpty || _password.text.isEmpty) {
@@ -120,7 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: _email.text.trim(), password: _password.text);
-      store.loginWithUid(cred.user!.uid, name, _type);
+      store.loginWithUid(cred.user!.uid, _name, _type);
     } catch (e) {
       if (mounted) _toast(context, 'Login nahi hua: $e');
     }
@@ -144,9 +173,9 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 20),
-              const Icon(Icons.school, size: 72, color: Color(0xFF1F4E79)),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
+              const Icon(Icons.school, size: 64, color: Color(0xFF1F4E79)),
+              const SizedBox(height: 10),
               const Text('MySaathi',
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -186,7 +215,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   );
                 },
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
               TextField(
                 controller: _centre,
                 decoration: const InputDecoration(
@@ -213,7 +242,19 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
                 onChanged: (v) => setState(() => _type = v ?? 'tuition'),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _busy ? null : _google,
+                icon: const Icon(Icons.account_circle),
+                label: const Text('Sign in with Google'),
+                style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16)),
+              ),
+              const SizedBox(height: 10),
+              const Text('ya email-password se:',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: Colors.black45)),
+              const SizedBox(height: 10),
               TextField(
                 controller: _email,
                 keyboardType: TextInputType.emailAddress,
@@ -231,7 +272,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.lock)),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
@@ -260,7 +301,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               const SizedBox(height: 12),
               const Text(
-                  'Pehli baar: naam, type, email, password daal kar Create Account. Agli baar: app khud yaad rakhegi.',
+                  'Pehli baar: naam, type daal kar Google ya Create Account. Agli baar app khud yaad rakhegi.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Colors.black45)),
             ],
@@ -297,6 +338,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
+  Future<void> _clearData() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Data delete karein?'),
+        content: const Text(
+            'Is centre ke saare log, attendance, fees aur description hat jayenge. '
+            'Yeh wapas nahi aayega. Aapka account rahega.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await widget.store.clearCentreData();
+      if (mounted) _toast(context, 'Data delete ho gaya');
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Account delete karein?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+                'Poora account aur saara data hat jayega. Yeh wapas nahi aayega.'),
+            const SizedBox(height: 12),
+            TextField(
+                controller: ctrl,
+                decoration: const InputDecoration(
+                    labelText: 'Confirm ke liye DELETE likhein')),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(
+                  ctx, ctrl.text.trim().toUpperCase() == 'DELETE'),
+              child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      try {
+        await FirebaseAuth.instance.currentUser?.delete();
+      } catch (_) {
+        try {
+          await FirebaseAuth.instance.signOut();
+        } catch (_) {}
+      }
+      await widget.store.deleteAccount();
+      if (mounted) Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -305,7 +412,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: const Color(0xFF1F4E79),
         foregroundColor: Colors.white,
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -326,7 +433,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.chat)),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             FilledButton(
               onPressed: () {
                 widget.store.setPayments(upi.text.trim(), phone.text.trim());
@@ -336,12 +443,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 16)),
               child: const Text('Save'),
             ),
-            const SizedBox(height: 16),
-            const Text(
-                'Note: "Pay via UPI" opens the student UPI app with the amount filled. '
-                'Automatic payment confirmation needs a payment gateway. '
-                '"Send WhatsApp" opens WhatsApp with the message ready - you just tap send.',
-                style: TextStyle(fontSize: 12, color: Colors.black54)),
+            const SizedBox(height: 28),
+            const Divider(),
+            const SizedBox(height: 8),
+            const Text('Delete options',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.red)),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: _clearData,
+              child: const Text('Is centre ka saara data delete karein'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: _deleteAccount,
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Account delete karein'),
+            ),
           ],
         ),
       ),
@@ -367,12 +485,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _switchAccount() async {
+  Future<void> _logout() async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Log out?'),
-        content: const Text('Aap login screen par jaayenge. Aapka data safe rahega.'),
+        content:
+            const Text('Aap login screen par jaayenge. Aapka data safe rahega.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -446,7 +565,7 @@ class _HomeScreenState extends State<HomeScreen> {
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'Log out',
-              onPressed: _switchAccount,
+              onPressed: _logout,
             ),
           ],
         ),
