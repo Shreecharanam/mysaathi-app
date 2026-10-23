@@ -81,7 +81,8 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     _centre.text = widget.store.centreName;
-    _type = widget.store.centreType;
+    final t = widget.store.centreType;
+    _type = (t == 'clinic') ? 'tuition' : t;
   }
 
   String get _name =>
@@ -193,7 +194,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 animation: widget.store,
                 builder: (context, _) {
                   final store = widget.store;
-                  final err = store.firebaseError ?? store.storageError;
+                  final err = store.firebaseError ??
+                      store.cloudError ??
+                      store.storageError;
                   if (err != null) {
                     return Padding(
                       padding: const EdgeInsets.only(top: 6),
@@ -203,12 +206,19 @@ class _LoginScreenState extends State<LoginScreen> {
                               const TextStyle(fontSize: 11, color: Colors.red)),
                     );
                   }
+                  final String msg;
+                  if (!store.firebaseReady) {
+                    msg = 'Cloud: connecting...';
+                  } else if (store.cloudStatus == 'saved') {
+                    msg = 'Cloud: data saved';
+                  } else if (store.cloudStatus == 'restored') {
+                    msg = 'Cloud: data restored';
+                  } else {
+                    msg = 'Cloud: connected';
+                  }
                   return Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                        store.firebaseReady
-                            ? 'Cloud: connected'
-                            : 'Cloud: connecting...',
+                    child: Text(msg,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                             fontSize: 11, color: Colors.black45)),
@@ -235,8 +245,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   DropdownMenuItem(
                       value: 'tuition', child: Text('Tuition / Coaching')),
                   DropdownMenuItem(value: 'gym', child: Text('Gym / Fitness')),
-                  DropdownMenuItem(
-                      value: 'clinic', child: Text('Clinic / Doctor')),
                   DropdownMenuItem(value: 'shop', child: Text('Shop / Store')),
                   DropdownMenuItem(value: 'other', child: Text('Other')),
                 ],
@@ -385,8 +393,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Cancel')),
           FilledButton(
-              onPressed: () => Navigator.pop(
-                  ctx, ctrl.text.trim().toUpperCase() == 'DELETE'),
+              onPressed: () =>
+                  Navigator.pop(ctx, ctrl.text.trim().toUpperCase() == 'DELETE'),
               child: const Text('Delete')),
         ],
       ),
@@ -447,8 +455,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const Divider(),
             const SizedBox(height: 8),
             const Text('Delete options',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold, color: Colors.red)),
+                style:
+                    TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
             const SizedBox(height: 8),
             OutlinedButton(
               onPressed: _clearData,
@@ -513,10 +521,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final store = widget.store;
-    final clinic = store.isClinic;
     final pages = <Widget>[
       StudentsTab(store: store),
-      clinic ? NotesTab(store: store) : AttendanceTab(store: store),
+      AttendanceTab(store: store),
       FeesTab(store: store),
     ];
     return PopScope(
@@ -581,9 +588,8 @@ class _HomeScreenState extends State<HomeScreen> {
             NavigationDestination(
                 icon: const Icon(Icons.people),
                 label: store.personWordPlural()),
-            NavigationDestination(
-                icon: Icon(clinic ? Icons.edit_note : Icons.check_circle),
-                label: clinic ? 'Description' : 'Attendance'),
+            const NavigationDestination(
+                icon: Icon(Icons.check_circle), label: 'Attendance'),
             const NavigationDestination(
                 icon: Icon(Icons.currency_rupee), label: 'Fees'),
           ],
@@ -739,172 +745,6 @@ class StudentsTab extends StatelessWidget {
               ),
             );
           },
-        );
-      },
-    );
-  }
-}
-
-class NotesTab extends StatelessWidget {
-  final AppStore store;
-  const NotesTab({super.key, required this.store});
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: store,
-      builder: (context, _) {
-        if (store.students.isEmpty) {
-          return Center(
-              child: Text(
-                  'No ${store.personWordPlural().toLowerCase()} yet. Tap + to add one.'));
-        }
-        return Column(
-          children: [
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Text('Har patient ka apna alag record - kisi ka ek jagah nahi.',
-                  style: TextStyle(fontSize: 12, color: Colors.black54)),
-            ),
-            Expanded(
-              child: ListView.builder(
-                itemCount: store.students.length,
-                itemBuilder: (context, i) {
-                  final s = store.students[i];
-                  final list = store.notesFor(s.id);
-                  return ListTile(
-                    leading: CircleAvatar(
-                      child:
-                          Text(s.name.isEmpty ? '?' : s.name[0].toUpperCase()),
-                    ),
-                    title: Text(s.name),
-                    subtitle: Text(list.isEmpty
-                        ? 'No description yet - tap to add'
-                        : (list.first['text'] ?? '')),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (list.isNotEmpty)
-                          Text('${list.length}',
-                              style: const TextStyle(color: Colors.black45)),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.edit_note),
-                      ],
-                    ),
-                    onTap: () {
-                      showDialog(
-                        context: context,
-                        builder: (_) => PatientNotesDialog(
-                            store: store, personId: s.id, personName: s.name),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class PatientNotesDialog extends StatefulWidget {
-  final AppStore store;
-  final String personId;
-  final String personName;
-  const PatientNotesDialog(
-      {super.key,
-      required this.store,
-      required this.personId,
-      required this.personName});
-
-  @override
-  State<PatientNotesDialog> createState() => _PatientNotesDialogState();
-}
-
-class _PatientNotesDialogState extends State<PatientNotesDialog> {
-  final _text = TextEditingController();
-
-  @override
-  void dispose() {
-    _text.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: widget.store,
-      builder: (context, _) {
-        final list = widget.store.notesFor(widget.personId);
-        return AlertDialog(
-          title: Text(widget.personName),
-          content: SizedBox(
-            width: 340,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextField(
-                  controller: _text,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'New description / note',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FilledButton(
-                    onPressed: () {
-                      final t = _text.text.trim();
-                      if (t.isEmpty) {
-                        return;
-                      }
-                      widget.store.addNote(widget.personId, t);
-                      _text.clear();
-                    },
-                    child: const Text('Add'),
-                  ),
-                ),
-                const Divider(),
-                if (list.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Text('No description yet.',
-                        style: TextStyle(color: Colors.black54)),
-                  )
-                else
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 220),
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: list.length,
-                      itemBuilder: (context, i) {
-                        final n = list[i];
-                        return ListTile(
-                          dense: true,
-                          title: Text(n['text'] ?? ''),
-                          subtitle: Text(n['date'] ?? ''),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete_outline, size: 18),
-                            onPressed: () =>
-                                widget.store.removeNote(widget.personId, i),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close')),
-          ],
         );
       },
     );
