@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
+import 'lang.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-const String appVersion = 'v13';
+const String appVersion = 'v14';
 
 String stampDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
@@ -85,6 +86,7 @@ class AppStore extends ChangeNotifier {
   String centrePhone = '';
   String gstin = '';
   String shopAddress = '';
+  String lang = 'en';
   String? storageError;
   final List<Student> students = [];
   final Map<String, List<String>> attendance = {};
@@ -106,6 +108,7 @@ class AppStore extends ChangeNotifier {
         'centrePhone': centrePhone,
         'gstin': gstin,
         'shopAddress': shopAddress,
+        'lang': lang,
         'students': students.map((e) => e.toJson()).toList(),
         'attendance': attendance,
         'payments': payments,
@@ -125,6 +128,8 @@ class AppStore extends ChangeNotifier {
     centrePhone = (d['centrePhone'] ?? '') as String;
     gstin = (d['gstin'] ?? '') as String;
     shopAddress = (d['shopAddress'] ?? '') as String;
+    lang = (d['lang'] ?? 'en') as String;
+    gLang = lang;
     for (final e in ((d['students'] ?? []) as List)) {
       students.add(Student.fromJson(Map<String, dynamic>.from(e as Map)));
     }
@@ -373,6 +378,13 @@ class AppStore extends ChangeNotifier {
     save();
   }
 
+  void setLang(String l) {
+    lang = l;
+    gLang = l;
+    save();
+    notifyListeners();
+  }
+
   void setPayments(String upi, String phone, String g, String addr) {
     upiId = upi;
     centrePhone = phone;
@@ -389,10 +401,10 @@ class AppStore extends ChangeNotifier {
       };
 
   String personWordPlural() => switch (centreType) {
-        'gym' => 'Members',
-        'shop' => 'Customers',
-        'other' => 'People',
-        _ => 'Students',
+        'gym' => tr('members'),
+        'shop' => tr('customers'),
+        'other' => tr('people'),
+        _ => tr('students'),
       };
 
   String groupWord() => switch (centreType) {

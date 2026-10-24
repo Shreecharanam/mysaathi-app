@@ -3,8 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'store.dart';
+import 'lang.dart';
 
-const MethodChannel _launcher = MethodChannel('mysaathi/launch');
+MethodChannel _launcher = MethodChannel('mysaathi/launch');
 
 String fmtDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
@@ -36,7 +37,7 @@ void _toast(BuildContext context, String msg) {
 Future<void> payUpi(
     BuildContext context, String upiId, String name, double amount) async {
   if (upiId.trim().isEmpty) {
-    _toast(context, 'Pehle Settings mein apni UPI ID daalein');
+    _toast(context, tr('err_set_upi'));
     return;
   }
   final url = 'upi://pay?pa=${Uri.encodeComponent(upiId)}'
@@ -44,7 +45,7 @@ Future<void> payUpi(
       '&am=${amount.toStringAsFixed(2)}&cu=INR';
   final ok = await openUrl(url);
   if (!ok) {
-    _toast(context, 'Koi UPI app nahi mila');
+    _toast(context, tr('err_no_upi_app'));
   }
 }
 
@@ -52,13 +53,13 @@ Future<void> sendWhatsApp(
     BuildContext context, String phone, String message) async {
   final n = waNumber(phone);
   if (n.isEmpty) {
-    _toast(context, 'Is vyakti ka phone number nahi hai');
+    _toast(context, tr('err_no_phone'));
     return;
   }
   final url = 'https://wa.me/$n?text=${Uri.encodeComponent(message)}';
   final ok = await openUrl(url);
   if (!ok) {
-    _toast(context, 'WhatsApp nahi khul paya');
+    _toast(context, tr('err_no_whatsapp'));
   }
 }
 
@@ -82,7 +83,7 @@ class _ItemRow {
 
 class LoginScreen extends StatefulWidget {
   final AppStore store;
-  const LoginScreen({super.key, required this.store});
+  LoginScreen({super.key, required this.store});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -109,7 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _google() async {
     final store = widget.store;
     if (!store.firebaseReady) {
-      _toast(context, 'Cloud abhi ready nahi - thodi der baad try karein');
+      _toast(context, tr('cloud_not_ready'));
       return;
     }
     setState(() => _busy = true);
@@ -128,7 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final uc = await FirebaseAuth.instance.signInWithCredential(cred);
       store.loginWithUid(uc.user!.uid, _name, _type);
     } catch (e) {
-      if (mounted) _toast(context, 'Google login nahi hua: $e');
+      if (mounted) _toast(context, '${tr('err_google')}: $e');
     }
     if (mounted) setState(() => _busy = false);
   }
@@ -140,7 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
     if (_email.text.trim().isEmpty || _password.text.length < 6) {
-      _toast(context, 'Email daalein aur password kam se kam 6 akshar ka');
+      _toast(context, tr('err_email_pw'));
       return;
     }
     setState(() => _busy = true);
@@ -149,7 +150,7 @@ class _LoginScreenState extends State<LoginScreen> {
           email: _email.text.trim(), password: _password.text);
       store.loginWithUid(cred.user!.uid, _name, _type);
     } catch (e) {
-      if (mounted) _toast(context, 'Account nahi bana: $e');
+      if (mounted) _toast(context, '${tr('err_account')}: $e');
     }
     if (mounted) setState(() => _busy = false);
   }
@@ -161,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
     if (_email.text.trim().isEmpty || _password.text.isEmpty) {
-      _toast(context, 'Email aur password daalein');
+      _toast(context, tr('err_email_pass2'));
       return;
     }
     setState(() => _busy = true);
@@ -170,7 +171,7 @@ class _LoginScreenState extends State<LoginScreen> {
           email: _email.text.trim(), password: _password.text);
       store.loginWithUid(cred.user!.uid, _name, _type);
     } catch (e) {
-      if (mounted) _toast(context, 'Login nahi hua: $e');
+      if (mounted) _toast(context, '${tr('err_login')}: $e');
     }
     if (mounted) setState(() => _busy = false);
   }
@@ -188,26 +189,26 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 16),
-              const Icon(Icons.school, size: 64, color: Color(0xFF1F4E79)),
-              const SizedBox(height: 10),
-              const Text('MySaathi',
+              SizedBox(height: 16),
+              Icon(Icons.school, size: 64, color: Color(0xFF1F4E79)),
+              SizedBox(height: 10),
+              Text('MySaathi',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                       fontSize: 30,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF1F4E79))),
-              const Text('Manage your centre - people, attendance and fees',
+              Text(tr('tagline'),
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.black54)),
-              const SizedBox(height: 4),
-              Text('Version $appVersion',
+              SizedBox(height: 4),
+              Text('${tr('version')} $appVersion',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12, color: Colors.black45)),
+                  style: TextStyle(fontSize: 12, color: Colors.black45)),
               AnimatedBuilder(
                 animation: widget.store,
                 builder: (context, _) {
@@ -217,117 +218,117 @@ class _LoginScreenState extends State<LoginScreen> {
                       store.storageError;
                   if (err != null) {
                     return Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text('Problem: $err',
+                      padding: EdgeInsets.only(top: 6),
+                      child: Text('${tr('problem')}: $err',
                           textAlign: TextAlign.center,
                           style:
-                              const TextStyle(fontSize: 11, color: Colors.red)),
+                              TextStyle(fontSize: 11, color: Colors.red)),
                     );
                   }
                   final String msg;
                   if (!store.firebaseReady) {
-                    msg = 'Cloud: connecting...';
+                    msg = tr('cloud_connecting');
                   } else if (store.cloudStatus == 'saved') {
-                    msg = 'Cloud: data saved';
+                    msg = tr('cloud_saved');
                   } else if (store.cloudStatus == 'restored') {
-                    msg = 'Cloud: data restored';
+                    msg = tr('cloud_restored');
                   } else {
-                    msg = 'Cloud: connected';
+                    msg = tr('cloud_connected');
                   }
                   return Padding(
-                    padding: const EdgeInsets.only(top: 6),
+                    padding: EdgeInsets.only(top: 6),
                     child: Text(msg,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 11, color: Colors.black45)),
                   );
                 },
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               TextField(
                 controller: _centre,
-                decoration: const InputDecoration(
-                    labelText: 'Centre Name',
-                    helperText: 'Har centre ka apna alag data',
+                decoration: InputDecoration(
+                    labelText: tr('centre_name'),
+                    helperText: tr('centre_name_help'),
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.store)),
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 value: _type,
-                decoration: const InputDecoration(
-                    labelText: 'Business Type',
+                decoration: InputDecoration(
+                    labelText: tr('business_type'),
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.category)),
-                items: const [
+                items: [
                   DropdownMenuItem(
-                      value: 'tuition', child: Text('Tuition / Coaching')),
-                  DropdownMenuItem(value: 'gym', child: Text('Gym / Fitness')),
-                  DropdownMenuItem(value: 'shop', child: Text('Shop / Store')),
-                  DropdownMenuItem(value: 'other', child: Text('Other')),
+                      value: 'tuition', child: Text(tr('type_tuition'))),
+                  DropdownMenuItem(value: 'gym', child: Text(tr('type_gym'))),
+                  DropdownMenuItem(value: 'shop', child: Text(tr('type_shop'))),
+                  DropdownMenuItem(value: 'other', child: Text(tr('type_other'))),
                 ],
                 onChanged: (v) => setState(() => _type = v ?? 'tuition'),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               OutlinedButton.icon(
                 onPressed: _busy ? null : _google,
-                icon: const Icon(Icons.account_circle),
-                label: const Text('Sign in with Google'),
+                icon: Icon(Icons.account_circle),
+                label: Text(tr('signin_google')),
                 style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16)),
+                    padding: EdgeInsets.symmetric(vertical: 16)),
               ),
-              const SizedBox(height: 10),
-              const Text('ya email-password se:',
+              SizedBox(height: 10),
+              Text(tr('or_email'),
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Colors.black45)),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               TextField(
                 controller: _email,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                    labelText: 'Email',
+                decoration: InputDecoration(
+                    labelText: tr('email'),
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.email)),
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: 14),
               TextField(
                 controller: _password,
                 obscureText: true,
-                decoration: const InputDecoration(
-                    labelText: 'Password',
+                decoration: InputDecoration(
+                    labelText: tr('password'),
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.lock)),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
                       onPressed: _busy ? null : _login,
                       style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16)),
-                      child: const Text('Log In'),
+                          padding: EdgeInsets.symmetric(vertical: 16)),
+                      child: Text(tr('login')),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: FilledButton(
                       onPressed: _busy ? null : _create,
                       style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16)),
-                      child: const Text('Create Account'),
+                          padding: EdgeInsets.symmetric(vertical: 16)),
+                      child: Text(tr('create_account')),
                     ),
                   ),
                 ],
               ),
               if (_busy)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(top: 14),
                   child: Center(child: CircularProgressIndicator()),
                 ),
-              const SizedBox(height: 12),
-              const Text(
-                  'Pehli baar: naam, type daal kar Google ya Create Account. Agli baar app khud yaad rakhegi.',
+              SizedBox(height: 12),
+              Text(
+                  tr('first_time_help'),
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Colors.black45)),
             ],
@@ -340,7 +341,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
 class SettingsScreen extends StatefulWidget {
   final AppStore store;
-  const SettingsScreen({super.key, required this.store});
+  SettingsScreen({super.key, required this.store});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -374,23 +375,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Data delete karein?'),
-        content: const Text(
-            'Is centre ke saare log, attendance, fees, bills aur description hat jayenge. '
-            'Yeh wapas nahi aayega. Aapka account rahega.'),
+        title: Text(tr('delete_data_q')),
+        content: Text(
+            tr('delete_data_body')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+              child: Text(tr('cancel'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Delete')),
+              child: Text(tr('delete'))),
         ],
       ),
     );
     if (ok == true) {
       await widget.store.clearCentreData();
-      if (mounted) _toast(context, 'Data delete ho gaya');
+      if (mounted) _toast(context, tr('data_deleted'));
     }
   }
 
@@ -399,27 +399,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Account delete karein?'),
+        title: Text(tr('delete_account_q')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
                 'Poora account aur saara data hat jayega. Yeh wapas nahi aayega.'),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             TextField(
                 controller: ctrl,
-                decoration: const InputDecoration(
-                    labelText: 'Confirm ke liye DELETE likhein')),
+                decoration: InputDecoration(
+                    labelText: tr('type_delete'))),
           ],
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+              child: Text(tr('cancel'))),
           FilledButton(
               onPressed: () =>
                   Navigator.pop(ctx, ctrl.text.trim().toUpperCase() == 'DELETE'),
-              child: const Text('Delete')),
+              child: Text(tr('delete'))),
         ],
       ),
     );
@@ -440,75 +440,93 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
-        backgroundColor: const Color(0xFF1F4E79),
+        title: Text('Settings'),
+        backgroundColor: Color(0xFF1F4E79),
         foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             TextField(
               controller: upi,
-              decoration: const InputDecoration(
-                  labelText: 'UPI ID (e.g. yourname@upi)',
+              decoration: InputDecoration(
+                  labelText: tr('upi_id'),
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.qr_code)),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             TextField(
               controller: phone,
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                  labelText: 'Centre WhatsApp Number',
+              decoration: InputDecoration(
+                  labelText: tr('centre_whatsapp'),
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.chat)),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             TextField(
               controller: gst,
-              decoration: const InputDecoration(
-                  labelText: 'GSTIN (bill ke liye, agar hai)',
+              decoration: InputDecoration(
+                  labelText: tr('gstin'),
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.receipt_long)),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             TextField(
               controller: addr,
               maxLines: 2,
-              decoration: const InputDecoration(
-                  labelText: 'Shop ka address / naam (bill par chhapega)',
+              decoration: InputDecoration(
+                  labelText: tr('shop_address'),
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.location_on)),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             FilledButton(
               onPressed: () {
                 widget.store.setPayments(upi.text.trim(), phone.text.trim(),
                     gst.text.trim(), addr.text.trim());
-                _toast(context, 'Saved');
+                _toast(context, tr('saved'));
               },
               style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16)),
-              child: const Text('Save'),
+                  padding: EdgeInsets.symmetric(vertical: 16)),
+              child: Text(tr('save')),
             ),
-            const SizedBox(height: 28),
-            const Divider(),
-            const SizedBox(height: 8),
-            const Text('Delete options',
+            SizedBox(height: 28),
+            Divider(),
+            SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: gLang,
+              decoration: InputDecoration(
+                  labelText: tr('language'),
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.language)),
+              items: [
+                for (var i = 0; i < kLangCodes.length; i++)
+                  DropdownMenuItem(
+                      value: kLangCodes[i], child: Text(kLangNames[i])),
+              ],
+              onChanged: (v) {
+                if (v != null) {
+                  widget.store.setLang(v);
+                }
+              },
+            ),
+            SizedBox(height: 20),
+            Text(tr('delete_options'),
                 style:
                     TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             OutlinedButton(
               onPressed: _clearData,
-              child: const Text('Is centre ka saara data delete karein'),
+              child: Text(tr('delete_centre_data')),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             OutlinedButton(
               onPressed: _deleteAccount,
               style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('Account delete karein'),
+              child: Text(tr('delete_account')),
             ),
           ],
         ),
@@ -519,7 +537,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
 class HomeScreen extends StatefulWidget {
   final AppStore store;
-  const HomeScreen({super.key, required this.store});
+  HomeScreen({super.key, required this.store});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -546,16 +564,16 @@ class _HomeScreenState extends State<HomeScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Log out?'),
+        title: Text(tr('logout_q')),
         content:
-            const Text('Aap login screen par jaayenge. Aapka data safe rahega.'),
+            Text('Aap login screen par jaayenge. Aapka data safe rahega.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+              child: Text(tr('cancel'))),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Log out')),
+              child: Text(tr('logout'))),
         ],
       ),
     );
@@ -589,15 +607,15 @@ class _HomeScreenState extends State<HomeScreen> {
         final exit = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('Exit MySaathi?'),
-            content: const Text('Do you want to close the app?'),
+            title: Text(tr('exit_q')),
+            content: Text(tr('exit_body')),
             actions: [
               TextButton(
                   onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Cancel')),
+                  child: Text(tr('cancel'))),
               FilledButton(
                   onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Exit')),
+                  child: Text(tr('exit'))),
             ],
           ),
         );
@@ -608,11 +626,11 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: Text(store.centreName.isEmpty ? 'MySaathi' : store.centreName),
-          backgroundColor: const Color(0xFF1F4E79),
+          backgroundColor: Color(0xFF1F4E79),
           foregroundColor: Colors.white,
           actions: [
             IconButton(
-              icon: const Icon(Icons.settings),
+              icon: Icon(Icons.settings),
               tooltip: 'Settings',
               onPressed: () {
                 Navigator.of(context).push(MaterialPageRoute(
@@ -620,8 +638,8 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'Log out',
+              icon: Icon(Icons.logout),
+              tooltip: tr('logout'),
               onPressed: _logout,
             ),
           ],
@@ -629,23 +647,23 @@ class _HomeScreenState extends State<HomeScreen> {
         body: pages[_index],
         floatingActionButton: _index == 0
             ? FloatingActionButton(
-                onPressed: _addStudent, child: const Icon(Icons.add))
+                onPressed: _addStudent, child: Icon(Icons.add))
             : (shop && _index == 1
                 ? FloatingActionButton(
-                    onPressed: _newBill, child: const Icon(Icons.add))
+                    onPressed: _newBill, child: Icon(Icons.add))
                 : null),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _index,
           onDestinationSelected: (i) => setState(() => _index = i),
           destinations: [
             NavigationDestination(
-                icon: const Icon(Icons.people),
+                icon: Icon(Icons.people),
                 label: store.personWordPlural()),
             NavigationDestination(
                 icon: Icon(shop ? Icons.receipt_long : Icons.check_circle),
-                label: shop ? 'Billing' : 'Attendance'),
-            const NavigationDestination(
-                icon: Icon(Icons.currency_rupee), label: 'Fees'),
+                label: shop ? tr('billing') : tr('attendance')),
+            NavigationDestination(
+                icon: Icon(Icons.currency_rupee), label: tr('fees')),
           ],
         ),
       ),
@@ -655,7 +673,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class NewBillDialog extends StatefulWidget {
   final AppStore store;
-  const NewBillDialog({super.key, required this.store});
+  NewBillDialog({super.key, required this.store});
 
   @override
   State<NewBillDialog> createState() => _NewBillDialogState();
@@ -695,7 +713,7 @@ class _NewBillDialogState extends State<NewBillDialog> {
       });
     }
     if (items.isEmpty) {
-      _toast(context, 'Kam se kam ek item daalein');
+      _toast(context, tr('err_min_item'));
       return;
     }
     widget.store.addBill({
@@ -714,7 +732,7 @@ class _NewBillDialogState extends State<NewBillDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Naya Bill'),
+      title: Text(tr('new_bill')),
       content: SizedBox(
         width: 360,
         child: SingleChildScrollView(
@@ -724,14 +742,14 @@ class _NewBillDialogState extends State<NewBillDialog> {
             children: [
               TextField(
                   controller: cust,
-                  decoration: const InputDecoration(labelText: 'Customer ka naam')),
+                  decoration: InputDecoration(labelText: tr('customer_name'))),
               TextField(
                   controller: custPhone,
                   keyboardType: TextInputType.phone,
                   decoration:
-                      const InputDecoration(labelText: 'Customer ka phone')),
-              const SizedBox(height: 12),
-              const Text('Items',
+                      InputDecoration(labelText: tr('customer_phone'))),
+              SizedBox(height: 12),
+              Text(tr('item'),
                   style: TextStyle(fontWeight: FontWeight.bold)),
               for (var i = 0; i < rows.length; i++) ...[
                 Row(
@@ -741,9 +759,9 @@ class _NewBillDialogState extends State<NewBillDialog> {
                       child: TextField(
                           controller: rows[i].name,
                           decoration:
-                              const InputDecoration(labelText: 'Item')),
+                              InputDecoration(labelText: tr('item'))),
                     ),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     Expanded(
                       flex: 2,
                       child: TextField(
@@ -751,9 +769,9 @@ class _NewBillDialogState extends State<NewBillDialog> {
                           keyboardType: TextInputType.number,
                           onChanged: (_) => setState(() {}),
                           decoration:
-                              const InputDecoration(labelText: 'Qty')),
+                              InputDecoration(labelText: tr('qty'))),
                     ),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     Expanded(
                       flex: 2,
                       child: TextField(
@@ -761,9 +779,9 @@ class _NewBillDialogState extends State<NewBillDialog> {
                           keyboardType: TextInputType.number,
                           onChanged: (_) => setState(() {}),
                           decoration:
-                              const InputDecoration(labelText: 'Rate')),
+                              InputDecoration(labelText: tr('rate'))),
                     ),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     Expanded(
                       flex: 2,
                       child: TextField(
@@ -771,10 +789,10 @@ class _NewBillDialogState extends State<NewBillDialog> {
                           keyboardType: TextInputType.number,
                           onChanged: (_) => setState(() {}),
                           decoration:
-                              const InputDecoration(labelText: 'GST %')),
+                              InputDecoration(labelText: tr('gst_percent'))),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.remove_circle_outline, size: 20),
+                      icon: Icon(Icons.remove_circle_outline, size: 20),
                       onPressed: rows.length == 1
                           ? null
                           : () {
@@ -790,15 +808,15 @@ class _NewBillDialogState extends State<NewBillDialog> {
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
                   onPressed: () => setState(() => rows.add(_ItemRow())),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Item jodein'),
+                  icon: Icon(Icons.add),
+                  label: Text(tr('add_item')),
                 ),
               ),
-              const Divider(),
+              Divider(),
               Text('Subtotal: Rs ${subtotal.toStringAsFixed(2)}'),
               Text('GST: Rs ${gstTotal.toStringAsFixed(2)}'),
               Text('Total: Rs ${total.toStringAsFixed(2)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
+                  style: TextStyle(fontWeight: FontWeight.bold)),
             ],
           ),
         ),
@@ -806,8 +824,8 @@ class _NewBillDialogState extends State<NewBillDialog> {
       actions: [
         TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel')),
-        FilledButton(onPressed: _save, child: const Text('Save Bill')),
+            child: Text(tr('cancel'))),
+        FilledButton(onPressed: _save, child: Text(tr('save_bill'))),
       ],
     );
   }
@@ -815,7 +833,7 @@ class _NewBillDialogState extends State<NewBillDialog> {
 
 class BillsTab extends StatelessWidget {
   final AppStore store;
-  const BillsTab({super.key, required this.store});
+  BillsTab({super.key, required this.store});
 
   @override
   Widget build(BuildContext context) {
@@ -823,8 +841,8 @@ class BillsTab extends StatelessWidget {
       animation: store,
       builder: (context, _) {
         if (store.bills.isEmpty) {
-          return const Center(
-              child: Text('Koi bill nahi. Neeche + dabayein.'));
+          return Center(
+              child: Text(tr('no_bills')));
         }
         return ListView.builder(
           itemCount: store.bills.length,
@@ -834,7 +852,7 @@ class BillsTab extends StatelessWidget {
             final date = (b['date'] ?? '') as String;
             final tot = ((b['total'] ?? 0) as num).toDouble();
             return ListTile(
-              leading: const CircleAvatar(child: Icon(Icons.receipt_long)),
+              leading: CircleAvatar(child: Icon(Icons.receipt_long)),
               title: Text(custName),
               subtitle: Text('$date   -   Rs ${tot.toStringAsFixed(2)}'),
               trailing: PopupMenuButton<String>(
@@ -870,9 +888,9 @@ class BillsTab extends StatelessWidget {
                     store.removeBill((b['id'] ?? '') as String);
                   }
                 },
-                itemBuilder: (ctx) => const [
-                  PopupMenuItem(value: 'wa', child: Text('Bill WhatsApp par bhejein')),
-                  PopupMenuItem(value: 'del', child: Text('Delete')),
+                itemBuilder: (ctx) => [
+                  PopupMenuItem(value: 'wa', child: Text(tr('send_bill_wa'))),
+                  PopupMenuItem(value: 'del', child: Text(tr('delete'))),
                 ],
               ),
             );
@@ -885,7 +903,7 @@ class BillsTab extends StatelessWidget {
 
 class AddPersonDialog extends StatefulWidget {
   final AppStore store;
-  const AddPersonDialog({super.key, required this.store});
+  AddPersonDialog({super.key, required this.store});
 
   @override
   State<AddPersonDialog> createState() => _AddPersonDialogState();
@@ -931,11 +949,11 @@ class _AddPersonDialogState extends State<AddPersonDialog> {
           children: [
             TextField(
                 controller: name,
-                decoration: const InputDecoration(labelText: 'Name')),
+                decoration: InputDecoration(labelText: 'Name')),
             TextField(
                 controller: phone,
                 keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(labelText: 'Phone')),
+                decoration: InputDecoration(labelText: 'Phone')),
             TextField(
                 controller: batch,
                 decoration: InputDecoration(labelText: store.groupWord())),
@@ -943,28 +961,28 @@ class _AddPersonDialogState extends State<AddPersonDialog> {
                 controller: fee,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(labelText: store.feeWord())),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             DropdownButtonFormField<String>(
               value: period,
-              decoration: const InputDecoration(labelText: 'Fee Period'),
-              items: const [
-                DropdownMenuItem(value: 'monthly', child: Text('Monthly')),
-                DropdownMenuItem(value: 'quarterly', child: Text('Quarterly')),
+              decoration: InputDecoration(labelText: tr('fee_period')),
+              items: [
+                DropdownMenuItem(value: 'monthly', child: Text(tr('p_monthly'))),
+                DropdownMenuItem(value: 'quarterly', child: Text(tr('p_quarterly'))),
                 DropdownMenuItem(
-                    value: 'half', child: Text('Half-Yearly (twice a year)')),
-                DropdownMenuItem(value: 'yearly', child: Text('Yearly')),
-                DropdownMenuItem(value: 'once', child: Text('One-time')),
+                    value: 'half', child: Text(tr('p_half'))),
+                DropdownMenuItem(value: 'yearly', child: Text(tr('p_yearly'))),
+                DropdownMenuItem(value: 'once', child: Text(tr('p_once'))),
               ],
               onChanged: (v) => setState(() => period = v ?? 'monthly'),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Row(
               children: [
                 Expanded(child: Text('Join Date: ${fmtDate(join)}')),
                 TextButton.icon(
                   onPressed: _pickJoinDate,
-                  icon: const Icon(Icons.calendar_month),
-                  label: const Text('Pick'),
+                  icon: Icon(Icons.calendar_month),
+                  label: Text(tr('pick')),
                 ),
               ],
             ),
@@ -974,7 +992,7 @@ class _AddPersonDialogState extends State<AddPersonDialog> {
       actions: [
         TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel')),
+            child: Text(tr('cancel'))),
         FilledButton(
           onPressed: () {
             if (name.text.trim().isEmpty) {
@@ -991,7 +1009,7 @@ class _AddPersonDialogState extends State<AddPersonDialog> {
             ));
             Navigator.pop(context);
           },
-          child: const Text('Add'),
+          child: Text('Add'),
         ),
       ],
     );
@@ -1000,7 +1018,7 @@ class _AddPersonDialogState extends State<AddPersonDialog> {
 
 class StudentsTab extends StatelessWidget {
   final AppStore store;
-  const StudentsTab({super.key, required this.store});
+  StudentsTab({super.key, required this.store});
 
   @override
   Widget build(BuildContext context) {
@@ -1022,9 +1040,9 @@ class StudentsTab extends StatelessWidget {
               ),
               title: Text(s.name),
               subtitle: Text(
-                  '${s.batch}   -   Rs ${s.fee.toStringAsFixed(0)} ${periodLabel(s.feePeriod)}   -   Joined ${s.joinDate}'),
+                  '${s.batch}   -   Rs ${s.fee.toStringAsFixed(0)} ${periodLabel(s.feePeriod)}   -   ${tr('joined')} ${s.joinDate}'),
               trailing: IconButton(
-                icon: const Icon(Icons.delete_outline),
+                icon: Icon(Icons.delete_outline),
                 onPressed: () => store.removeStudent(s.id),
               ),
             );
@@ -1037,7 +1055,7 @@ class StudentsTab extends StatelessWidget {
 
 class AttendanceTab extends StatefulWidget {
   final AppStore store;
-  const AttendanceTab({super.key, required this.store});
+  AttendanceTab({super.key, required this.store});
 
   @override
   State<AttendanceTab> createState() => _AttendanceTabState();
@@ -1068,28 +1086,28 @@ class _AttendanceTabState extends State<AttendanceTab> {
         return Column(
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               child: Row(
                 children: [
                   Expanded(
                     child: Text('Date: ${fmtDate(date)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                        style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
                   TextButton.icon(
                     onPressed: _pickDate,
-                    icon: const Icon(Icons.calendar_month),
-                    label: const Text('Pick date'),
+                    icon: Icon(Icons.calendar_month),
+                    label: Text(tr('pick_date')),
                   ),
                 ],
               ),
             ),
             if (store.students.isEmpty)
-              const Expanded(
-                  child: Center(child: Text('Add people first.')))
+              Expanded(
+                  child: Center(child: Text(tr('add_people_first'))))
             else ...[
               Text(
                   'Present: ${store.students.where((s) => store.isPresent(key, s.id)).length} / ${store.students.length}',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               Expanded(
                 child: ListView.builder(
                   itemCount: store.students.length,
@@ -1114,7 +1132,7 @@ class _AttendanceTabState extends State<AttendanceTab> {
 
 class FeesTab extends StatelessWidget {
   final AppStore store;
-  const FeesTab({super.key, required this.store});
+  FeesTab({super.key, required this.store});
 
   @override
   Widget build(BuildContext context) {
@@ -1122,7 +1140,7 @@ class FeesTab extends StatelessWidget {
       animation: store,
       builder: (context, _) {
         if (store.students.isEmpty) {
-          return const Center(child: Text('Add people first.'));
+          return Center(child: Text(tr('add_people_first')));
         }
         return ListView.builder(
           itemCount: store.students.length,
@@ -1131,15 +1149,16 @@ class FeesTab extends StatelessWidget {
             final pk = periodKeyFor(DateTime.now(), s.feePeriod);
             final paid = store.paidFor(s.id, pk);
             final due = s.fee - paid;
-            final pendingMsg = 'Namaste ${s.name}, ${store.centreName} ki fees '
-                'Rs ${due.toStringAsFixed(0)} pending hai. Kripya UPI se pay karein.'
-                '${store.upiId.isEmpty ? '' : ' UPI ID: ${store.upiId}'} Dhanyavaad.';
-            final paidMsg = 'Namaste ${s.name}, ${store.centreName} ko '
-                'Rs ${paid.toStringAsFixed(0)} fees mil gayi. Dhanyavaad!';
+            final pendingMsg = 'Hello ${s.name}, your fees of '
+                'Rs ${due.toStringAsFixed(0)} at ${store.centreName} are pending. '
+                'Please pay by UPI.'
+                '${store.upiId.isEmpty ? '' : ' UPI ID: ${store.upiId}'} Thank you.';
+            final paidMsg = 'Hello ${s.name}, ${store.centreName} has received '
+                'Rs ${paid.toStringAsFixed(0)}. Thank you!';
             return ListTile(
               title: Text(s.name),
               subtitle: Text(
-                  '${periodLabel(s.feePeriod)}: Rs ${s.fee.toStringAsFixed(0)}   -   Paid Rs ${paid.toStringAsFixed(0)}   -   ${due <= 0 ? 'Paid' : 'Due Rs ${due.toStringAsFixed(0)}'}'),
+                  '${periodLabel(s.feePeriod)}: Rs ${s.fee.toStringAsFixed(0)}   -   Paid Rs ${paid.toStringAsFixed(0)}   -   ${due <= 0 ? tr('paid') : 'Due Rs ${due.toStringAsFixed(0)}'}'),
               trailing: PopupMenuButton<String>(
                 onSelected: (v) {
                   if (v == 'upi') {
@@ -1153,13 +1172,13 @@ class FeesTab extends StatelessWidget {
                 },
                 itemBuilder: (ctx) => [
                   if (due > 0)
-                    const PopupMenuItem(
-                        value: 'upi', child: Text('Pay via UPI')),
-                  const PopupMenuItem(
-                      value: 'wa', child: Text('Send WhatsApp')),
+                    PopupMenuItem(
+                        value: 'upi', child: Text(tr('pay_upi'))),
+                  PopupMenuItem(
+                      value: 'wa', child: Text(tr('send_whatsapp'))),
                   if (due > 0)
-                    const PopupMenuItem(
-                        value: 'paid', child: Text('Mark as paid')),
+                    PopupMenuItem(
+                        value: 'paid', child: Text(tr('mark_paid'))),
                 ],
               ),
             );
