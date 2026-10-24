@@ -140,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _create() async {
     final store = widget.store;
     if (!store.firebaseReady) {
-      store.loginLocal(_name, _type);
+      await store.loginLocal(_name, _type);
       return;
     }
     if (_email.text.trim().isEmpty || _password.text.length < 6) {
@@ -161,7 +161,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _login() async {
     final store = widget.store;
     if (!store.firebaseReady) {
-      store.loginLocal(_name, _type);
+      await store.loginLocal(_name, _type);
       return;
     }
     if (_email.text.trim().isEmpty || _password.text.isEmpty) {

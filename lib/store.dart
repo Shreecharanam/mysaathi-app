@@ -347,6 +347,29 @@ class AppStore extends ChangeNotifier {
     await save();
   }
 
+  Future<void> loginLocal(String name, String type) async {
+    final key = name.trim().toLowerCase();
+    uid = key;
+    sessionUid = key;
+    if (_fileUid != key) {
+      accounts.clear();
+      accountKey = '';
+      lastCid = '';
+    }
+    if (accounts.isEmpty) {
+      await createCentre(name, type);
+      return;
+    }
+    if (lastCid.isNotEmpty && accounts.containsKey(lastCid)) {
+      accountKey = lastCid;
+    } else {
+      accountKey = accounts.keys.first;
+    }
+    pullActive();
+    lastCid = accountKey;
+    await save();
+  }
+
   Future<void> createCentre(String name, String type) async {
     capture();
     final cid = DateTime.now().microsecondsSinceEpoch.toString();
