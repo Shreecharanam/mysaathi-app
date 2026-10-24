@@ -5,6 +5,14 @@ const List<String> kLangNames = ['English', 'हिन्दी', 'मराठ�
 
 const Map<String, Map<String, String>> kT = {
   'en': {
+    'switch_centre': 'Switch centre',
+    'your_centres': 'Your centres',
+    'new_centre': 'New centre',
+    'add_centre': 'Add centre',
+    'no_centres': 'No centres yet. Tap + to add your first centre.',
+    'delete_centre': 'Delete centre',
+    'open_centre': 'Open',
+    'select_centre': 'Select a centre',
     'tagline': 'Manage your centre - people, attendance and fees',
     'version': 'Version',
     'cloud_connecting': 'Cloud: connecting...',

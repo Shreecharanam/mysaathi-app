@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
-import 'lang.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'lang.dart';
 
-const String appVersion = 'v14';
+const String appVersion = 'v15';
 
 String stampDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
@@ -74,8 +74,10 @@ class Student {
 }
 
 class AppStore extends ChangeNotifier {
-  String accountKey = '';
+  String uid = '';
   String sessionUid = '';
+  String accountKey = '';
+  String lastCid = '';
   bool firebaseReady = false;
   String? firebaseError;
   String? cloudError;
@@ -94,6 +96,7 @@ class AppStore extends ChangeNotifier {
   final Map<String, List<Map<String, String>>> notes = {};
   final List<Map<String, dynamic>> bills = [];
   final Map<String, dynamic> accounts = {};
+  String _fileUid = '';
 
   File? _file;
 
@@ -101,20 +104,29 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  Map<String, dynamic> toMap() => {
+  bool get loggedIn => uid.isNotEmpty;
+  bool get centreOpen => accountKey.isNotEmpty;
+  bool get isShop => centreType == 'shop';
+
+  Map<String, dynamic> centreMap() => {
         'centreName': centreName,
         'centreType': centreType,
         'upiId': upiId,
         'centrePhone': centrePhone,
         'gstin': gstin,
         'shopAddress': shopAddress,
-        'lang': lang,
         'students': students.map((e) => e.toJson()).toList(),
         'attendance': attendance,
         'payments': payments,
         'notes': notes,
         'bills': bills,
       };
+
+  void capture() {
+    if (accountKey.isNotEmpty) {
+      accounts[accountKey] = centreMap();
+    }
+  }
 
   void applyMap(Map<String, dynamic> d) {
     students.clear();
@@ -128,8 +140,6 @@ class AppStore extends ChangeNotifier {
     centrePhone = (d['centrePhone'] ?? '') as String;
     gstin = (d['gstin'] ?? '') as String;
     shopAddress = (d['shopAddress'] ?? '') as String;
-    lang = (d['lang'] ?? 'en') as String;
-    gLang = lang;
     for (final e in ((d['students'] ?? []) as List)) {
       students.add(Student.fromJson(Map<String, dynamic>.from(e as Map)));
     }
@@ -149,6 +159,31 @@ class AppStore extends ChangeNotifier {
     for (final e in ((d['bills'] ?? []) as List)) {
       bills.add(Map<String, dynamic>.from(e as Map));
     }
+  }
+
+  void pullActive() {
+    final d = accounts[accountKey];
+    if (d is Map) {
+      applyMap(Map<String, dynamic>.from(d));
+    }
+  }
+
+  List<String> centreIds() => accounts.keys.toList();
+
+  String centreLabel(String cid) {
+    final d = accounts[cid];
+    if (d is Map) {
+      return (d['centreName'] ?? 'My Centre').toString();
+    }
+    return 'My Centre';
+  }
+
+  String centreTypeOf(String cid) {
+    final d = accounts[cid];
+    if (d is Map) {
+      return (d['centreType'] ?? 'tuition').toString();
+    }
+    return 'tuition';
   }
 
   Future<File?> dataFile() async {
@@ -190,10 +225,18 @@ class AppStore extends ChangeNotifier {
     return null;
   }
 
-  void pullActive() {
-    final d = accounts[accountKey];
-    if (d is Map) {
-      applyMap(Map<String, dynamic>.from(d));
+  Future<void> _writeLocal() async {
+    try {
+      final f = await dataFile();
+      if (f != null) {
+        f.writeAsStringSync(jsonEncode({
+          'uid': uid,
+          'centres': accounts,
+          'last': lastCid,
+        }));
+      }
+    } catch (e) {
+      storageError = e.toString();
     }
   }
 
@@ -204,14 +247,20 @@ class AppStore extends ChangeNotifier {
         final txt = f.readAsStringSync();
         if (txt.trim().isNotEmpty) {
           final m = jsonDecode(txt);
-          if (m is Map && m['accounts'] is Map) {
-            accounts.clear();
-            (m['accounts'] as Map).forEach((k, v) => accounts[k.toString()] = v);
-            final last = (m['last'] ?? '').toString();
-            final restore = sessionUid.isNotEmpty ? sessionUid : last;
-            if (restore.isNotEmpty && accounts.containsKey(restore)) {
-              accountKey = restore;
-              pullActive();
+          if (m is Map && m['centres'] is Map) {
+            final fileUid = (m['uid'] ?? '').toString();
+            final want = sessionUid.isNotEmpty ? sessionUid : fileUid;
+            if (want.isEmpty || fileUid.isEmpty || fileUid == want) {
+              accounts.clear();
+              (m['centres'] as Map)
+                  .forEach((k, v) => accounts[k.toString()] = v);
+              _fileUid = fileUid;
+              uid = want.isNotEmpty ? want : fileUid;
+              lastCid = (m['last'] ?? '').toString();
+              if (lastCid.isNotEmpty && accounts.containsKey(lastCid)) {
+                accountKey = lastCid;
+                pullActive();
+              }
             }
           }
         }
@@ -223,31 +272,21 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<void> save() async {
+    capture();
     notifyListeners();
-    try {
-      if (accountKey.isNotEmpty) {
-        accounts[accountKey] = toMap();
-      }
-      final f = await dataFile();
-      if (f != null) {
-        f.writeAsStringSync(
-            jsonEncode({'last': accountKey, 'accounts': accounts}));
-      }
-    } catch (e) {
-      storageError = e.toString();
-    }
+    await _writeLocal();
     pushCloud();
   }
 
   Future<void> pushCloud() async {
-    if (!firebaseReady || accountKey.isEmpty) {
+    if (!firebaseReady || uid.isEmpty) {
       return;
     }
     try {
-      await FirebaseFirestore.instance
-          .collection('centres')
-          .doc(accountKey)
-          .set(toMap());
+      await FirebaseFirestore.instance.collection('centres').doc(uid).set({
+        'centres': accounts,
+        'last': lastCid,
+      });
       cloudStatus = 'saved';
       cloudError = null;
     } catch (e) {
@@ -257,26 +296,22 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> pullCloudIfEmpty() async {
-    if (!firebaseReady || accountKey.isEmpty) {
-      return;
-    }
-    if (students.isNotEmpty || bills.isNotEmpty) {
+  Future<void> pullCloud() async {
+    if (!firebaseReady || uid.isEmpty) {
       return;
     }
     try {
       final doc = await FirebaseFirestore.instance
           .collection('centres')
-          .doc(accountKey)
+          .doc(uid)
           .get();
       if (doc.exists && doc.data() != null) {
-        applyMap(Map<String, dynamic>.from(doc.data()!));
-        accounts[accountKey] = toMap();
-        final f = await dataFile();
-        if (f != null) {
-          f.writeAsStringSync(
-              jsonEncode({'last': accountKey, 'accounts': accounts}));
-        }
+        final d = doc.data()!;
+        accounts.clear();
+        ((d['centres'] ?? {}) as Map)
+            .forEach((k, v) => accounts[k.toString()] = v);
+        lastCid = (d['last'] ?? '').toString();
+        _fileUid = uid;
         cloudStatus = 'restored';
       } else {
         cloudStatus = 'empty';
@@ -289,49 +324,71 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  void loginWithUid(String uid, String name, String type) {
-    accountKey = uid;
-    sessionUid = uid;
-    if (accounts[uid] is Map) {
-      pullActive();
-    } else {
-      centreName = name.isEmpty ? 'My Centre' : name;
-      centreType = type;
-      upiId = '';
-      centrePhone = '';
-      gstin = '';
-      shopAddress = '';
-      students.clear();
-      attendance.clear();
-      payments.clear();
-      notes.clear();
-      bills.clear();
+  Future<void> loginWithUid(String u, String name, String type) async {
+    uid = u;
+    sessionUid = u;
+    if (_fileUid != u) {
+      accounts.clear();
+      accountKey = '';
+      lastCid = '';
+      await pullCloud();
     }
-    save();
-    pullCloudIfEmpty();
+    if (accounts.isEmpty) {
+      await createCentre(name.isEmpty ? 'My Centre' : name, type);
+      return;
+    }
+    if (lastCid.isNotEmpty && accounts.containsKey(lastCid)) {
+      accountKey = lastCid;
+    } else {
+      accountKey = accounts.keys.first;
+    }
+    pullActive();
+    lastCid = accountKey;
+    await save();
   }
 
-  void loginLocal(String name, String type) {
-    final key = name.trim().toLowerCase();
-    accountKey = key;
-    sessionUid = key;
-    if (accounts[key] is Map) {
-      pullActive();
-    } else {
-      centreName = name;
-      centreType = type;
-      upiId = '';
-      centrePhone = '';
-      gstin = '';
-      shopAddress = '';
-      students.clear();
-      attendance.clear();
-      payments.clear();
-      notes.clear();
-      bills.clear();
+  Future<void> createCentre(String name, String type) async {
+    capture();
+    final cid = DateTime.now().microsecondsSinceEpoch.toString();
+    accountKey = cid;
+    lastCid = cid;
+    centreName = name.isEmpty ? 'My Centre' : name;
+    centreType = type;
+    upiId = '';
+    centrePhone = '';
+    gstin = '';
+    shopAddress = '';
+    students.clear();
+    attendance.clear();
+    payments.clear();
+    notes.clear();
+    bills.clear();
+    await save();
+  }
+
+  Future<void> switchTo(String cid) async {
+    capture();
+    accountKey = cid;
+    lastCid = cid;
+    pullActive();
+    await save();
+  }
+
+  Future<void> openChooser() async {
+    capture();
+    accountKey = '';
+    await save();
+  }
+
+  Future<void> removeCentre(String cid) async {
+    accounts.remove(cid);
+    if (accountKey == cid) {
+      accountKey = '';
     }
-    save();
-    pullCloudIfEmpty();
+    if (lastCid == cid) {
+      lastCid = '';
+    }
+    await save();
   }
 
   Future<void> clearCentreData() async {
@@ -340,11 +397,11 @@ class AppStore extends ChangeNotifier {
     payments.clear();
     notes.clear();
     bills.clear();
-    save();
+    await save();
   }
 
   Future<void> deleteAccount() async {
-    accounts.remove(accountKey);
+    accounts.clear();
     students.clear();
     attendance.clear();
     payments.clear();
@@ -357,13 +414,17 @@ class AppStore extends ChangeNotifier {
     gstin = '';
     shopAddress = '';
     accountKey = '';
+    lastCid = '';
+    uid = '';
     sessionUid = '';
-    save();
+    _fileUid = '';
+    await save();
   }
 
-  void logout() {
+  Future<void> logout() async {
+    uid = '';
     accountKey = '';
-    sessionUid = '';
+    lastCid = '';
     centreName = '';
     centreType = 'tuition';
     upiId = '';
@@ -375,7 +436,8 @@ class AppStore extends ChangeNotifier {
     payments.clear();
     notes.clear();
     bills.clear();
-    save();
+    cloudStatus = 'off';
+    await save();
   }
 
   void setLang(String l) {
@@ -419,8 +481,6 @@ class AppStore extends ChangeNotifier {
         'other' => 'Amount',
         _ => 'Monthly Fee',
       };
-
-  bool get isShop => centreType == 'shop';
 
   void addStudent(Student s) {
     students.add(s);

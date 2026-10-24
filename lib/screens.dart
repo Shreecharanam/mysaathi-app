@@ -116,6 +116,9 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _busy = true);
     try {
       final gs = GoogleSignIn();
+      try {
+        await gs.signOut();
+      } catch (_) {}
       final account = await gs.signIn();
       if (account == null) {
         if (mounted) setState(() => _busy = false);
@@ -127,7 +130,7 @@ class _LoginScreenState extends State<LoginScreen> {
         idToken: auth.idToken,
       );
       final uc = await FirebaseAuth.instance.signInWithCredential(cred);
-      store.loginWithUid(uc.user!.uid, _name, _type);
+      await store.loginWithUid(uc.user!.uid, _name, _type);
     } catch (e) {
       if (mounted) _toast(context, '${tr('err_google')}: $e');
     }
@@ -148,7 +151,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: _email.text.trim(), password: _password.text);
-      store.loginWithUid(cred.user!.uid, _name, _type);
+      await store.loginWithUid(cred.user!.uid, _name, _type);
     } catch (e) {
       if (mounted) _toast(context, '${tr('err_account')}: $e');
     }
@@ -169,7 +172,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: _email.text.trim(), password: _password.text);
-      store.loginWithUid(cred.user!.uid, _name, _type);
+      await store.loginWithUid(cred.user!.uid, _name, _type);
     } catch (e) {
       if (mounted) _toast(context, '${tr('err_login')}: $e');
     }
@@ -581,7 +584,10 @@ class _HomeScreenState extends State<HomeScreen> {
       try {
         await FirebaseAuth.instance.signOut();
       } catch (_) {}
-      widget.store.logout();
+      try {
+        await GoogleSignIn().signOut();
+      } catch (_) {}
+      await widget.store.logout();
     }
   }
 
@@ -629,6 +635,13 @@ class _HomeScreenState extends State<HomeScreen> {
           backgroundColor: Color(0xFF1F4E79),
           foregroundColor: Colors.white,
           actions: [
+            IconButton(
+              icon: Icon(Icons.swap_horiz),
+              tooltip: tr('switch_centre'),
+              onPressed: () {
+                widget.store.openChooser();
+              },
+            ),
             IconButton(
               icon: Icon(Icons.settings),
               tooltip: 'Settings',
@@ -1188,3 +1201,128 @@ class FeesTab extends StatelessWidget {
     );
   }
 }
+
+
+class CentreChooserScreen extends StatelessWidget {
+  final AppStore store;
+  const CentreChooserScreen({super.key, required this.store});
+
+  Future<void> _logout(BuildContext context) async {
+    try {
+      await FirebaseAuth.instance.signOut();
+    } catch (_) {}
+    try {
+      await GoogleSignIn().signOut();
+    } catch (_) {}
+    await store.logout();
+  }
+
+  Future<void> _add(BuildContext context) async {
+    final name = TextEditingController();
+    String type = 'tuition';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => AlertDialog(
+          title: Text(tr('new_centre')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                  controller: name,
+                  decoration: InputDecoration(labelText: tr('centre_name'))),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: type,
+                decoration: InputDecoration(
+                    labelText: tr('business_type'),
+                    border: const OutlineInputBorder()),
+                items: [
+                  DropdownMenuItem(
+                      value: 'tuition', child: Text(tr('type_tuition'))),
+                  DropdownMenuItem(value: 'gym', child: Text(tr('type_gym'))),
+                  DropdownMenuItem(value: 'shop', child: Text(tr('type_shop'))),
+                  DropdownMenuItem(
+                      value: 'other', child: Text(tr('type_other'))),
+                ],
+                onChanged: (v) => setSt(() => type = v ?? 'tuition'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(tr('cancel'))),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(tr('add_centre'))),
+          ],
+        ),
+      ),
+    );
+    if (ok == true) {
+      await store.createCentre(name.text.trim(), type);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: store,
+      builder: (context, _) {
+        final ids = store.centreIds();
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(tr('your_centres')),
+            backgroundColor: const Color(0xFF1F4E79),
+            foregroundColor: Colors.white,
+            actions: [
+              IconButton(
+                  icon: const Icon(Icons.logout),
+                  tooltip: tr('logout'),
+                  onPressed: () => _logout(context)),
+            ],
+          ),
+          body: ids.isEmpty
+              ? Center(child: Text(tr('no_centres')))
+              : ListView.builder(
+                  itemCount: ids.length,
+                  itemBuilder: (context, i) {
+                    final cid = ids[i];
+                    return ListTile(
+                      leading: CircleAvatar(
+                          child: Icon(_typeIcon(store.centreTypeOf(cid)))),
+                      title: Text(store.centreLabel(cid)),
+                      subtitle: Text(_typeName(store.centreTypeOf(cid))),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () => store.removeCentre(cid),
+                      ),
+                      onTap: () => store.switchTo(cid),
+                    );
+                  },
+                ),
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: () => _add(context),
+            icon: const Icon(Icons.add),
+            label: Text(tr('new_centre')),
+          ),
+        );
+      },
+    );
+  }
+}
+
+IconData _typeIcon(String t) => switch (t) {
+      'gym' => Icons.fitness_center,
+      'shop' => Icons.storefront,
+      'other' => Icons.category,
+      _ => Icons.school,
+    };
+
+String _typeName(String t) => switch (t) {
+      'gym' => tr('type_gym'),
+      'shop' => tr('type_shop'),
+      'other' => tr('type_other'),
+      _ => tr('type_tuition'),
+    };

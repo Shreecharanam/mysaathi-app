@@ -43,8 +43,11 @@ class MySaathiApp extends StatelessWidget {
       home: AnimatedBuilder(
         animation: store,
         builder: (context, _) {
-          if (store.accountKey.isEmpty) {
+          if (!store.loggedIn) {
             return LoginScreen(store: store);
+          }
+          if (!store.centreOpen) {
+            return CentreChooserScreen(store: store);
           }
           return HomeScreen(store: store);
         },
