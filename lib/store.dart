@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-const String appVersion = 'v12';
+const String appVersion = 'v13';
 
 String stampDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
@@ -83,11 +83,14 @@ class AppStore extends ChangeNotifier {
   String centreType = 'tuition';
   String upiId = '';
   String centrePhone = '';
+  String gstin = '';
+  String shopAddress = '';
   String? storageError;
   final List<Student> students = [];
   final Map<String, List<String>> attendance = {};
   final Map<String, double> payments = {};
   final Map<String, List<Map<String, String>>> notes = {};
+  final List<Map<String, dynamic>> bills = [];
   final Map<String, dynamic> accounts = {};
 
   File? _file;
@@ -101,10 +104,13 @@ class AppStore extends ChangeNotifier {
         'centreType': centreType,
         'upiId': upiId,
         'centrePhone': centrePhone,
+        'gstin': gstin,
+        'shopAddress': shopAddress,
         'students': students.map((e) => e.toJson()).toList(),
         'attendance': attendance,
         'payments': payments,
         'notes': notes,
+        'bills': bills,
       };
 
   void applyMap(Map<String, dynamic> d) {
@@ -112,10 +118,13 @@ class AppStore extends ChangeNotifier {
     attendance.clear();
     payments.clear();
     notes.clear();
+    bills.clear();
     centreName = (d['centreName'] ?? '') as String;
     centreType = (d['centreType'] ?? 'tuition') as String;
     upiId = (d['upiId'] ?? '') as String;
     centrePhone = (d['centrePhone'] ?? '') as String;
+    gstin = (d['gstin'] ?? '') as String;
+    shopAddress = (d['shopAddress'] ?? '') as String;
     for (final e in ((d['students'] ?? []) as List)) {
       students.add(Student.fromJson(Map<String, dynamic>.from(e as Map)));
     }
@@ -132,6 +141,9 @@ class AppStore extends ChangeNotifier {
       }
       notes[k.toString()] = list;
     });
+    for (final e in ((d['bills'] ?? []) as List)) {
+      bills.add(Map<String, dynamic>.from(e as Map));
+    }
   }
 
   Future<File?> dataFile() async {
@@ -174,32 +186,9 @@ class AppStore extends ChangeNotifier {
   }
 
   void pullActive() {
-    students.clear();
-    attendance.clear();
-    payments.clear();
-    notes.clear();
     final d = accounts[accountKey];
     if (d is Map) {
-      centreName = (d['centreName'] ?? '') as String;
-      centreType = (d['centreType'] ?? 'tuition') as String;
-      upiId = (d['upiId'] ?? '') as String;
-      centrePhone = (d['centrePhone'] ?? '') as String;
-      for (final e in ((d['students'] ?? []) as List)) {
-        students.add(Student.fromJson(Map<String, dynamic>.from(e as Map)));
-      }
-      ((d['attendance'] ?? {}) as Map).forEach((k, v) {
-        attendance[k as String] = (v as List).map((x) => x as String).toList();
-      });
-      ((d['payments'] ?? {}) as Map).forEach((k, v) {
-        payments[k as String] = (v as num).toDouble();
-      });
-      ((d['notes'] ?? {}) as Map).forEach((k, v) {
-        final list = <Map<String, String>>[];
-        for (final e in (v as List)) {
-          list.add(Map<String, String>.from(e as Map));
-        }
-        notes[k.toString()] = list;
-      });
+      applyMap(Map<String, dynamic>.from(d));
     }
   }
 
@@ -267,7 +256,7 @@ class AppStore extends ChangeNotifier {
     if (!firebaseReady || accountKey.isEmpty) {
       return;
     }
-    if (students.isNotEmpty) {
+    if (students.isNotEmpty || bills.isNotEmpty) {
       return;
     }
     try {
@@ -276,7 +265,7 @@ class AppStore extends ChangeNotifier {
           .doc(accountKey)
           .get();
       if (doc.exists && doc.data() != null) {
-        applyMap(doc.data()!);
+        applyMap(Map<String, dynamic>.from(doc.data()!));
         accounts[accountKey] = toMap();
         final f = await dataFile();
         if (f != null) {
@@ -305,10 +294,13 @@ class AppStore extends ChangeNotifier {
       centreType = type;
       upiId = '';
       centrePhone = '';
+      gstin = '';
+      shopAddress = '';
       students.clear();
       attendance.clear();
       payments.clear();
       notes.clear();
+      bills.clear();
     }
     save();
     pullCloudIfEmpty();
@@ -325,10 +317,13 @@ class AppStore extends ChangeNotifier {
       centreType = type;
       upiId = '';
       centrePhone = '';
+      gstin = '';
+      shopAddress = '';
       students.clear();
       attendance.clear();
       payments.clear();
       notes.clear();
+      bills.clear();
     }
     save();
     pullCloudIfEmpty();
@@ -339,6 +334,7 @@ class AppStore extends ChangeNotifier {
     attendance.clear();
     payments.clear();
     notes.clear();
+    bills.clear();
     save();
   }
 
@@ -348,10 +344,13 @@ class AppStore extends ChangeNotifier {
     attendance.clear();
     payments.clear();
     notes.clear();
+    bills.clear();
     centreName = '';
     centreType = 'tuition';
     upiId = '';
     centrePhone = '';
+    gstin = '';
+    shopAddress = '';
     accountKey = '';
     sessionUid = '';
     save();
@@ -364,16 +363,21 @@ class AppStore extends ChangeNotifier {
     centreType = 'tuition';
     upiId = '';
     centrePhone = '';
+    gstin = '';
+    shopAddress = '';
     students.clear();
     attendance.clear();
     payments.clear();
     notes.clear();
+    bills.clear();
     save();
   }
 
-  void setPayments(String upi, String phone) {
+  void setPayments(String upi, String phone, String g, String addr) {
     upiId = upi;
     centrePhone = phone;
+    gstin = g;
+    shopAddress = addr;
     save();
   }
 
@@ -404,7 +408,7 @@ class AppStore extends ChangeNotifier {
         _ => 'Monthly Fee',
       };
 
-  bool get isClinic => false;
+  bool get isShop => centreType == 'shop';
 
   void addStudent(Student s) {
     students.add(s);
@@ -453,5 +457,15 @@ class AppStore extends ChangeNotifier {
       list.removeAt(index);
       save();
     }
+  }
+
+  void addBill(Map<String, dynamic> bill) {
+    bills.insert(0, bill);
+    save();
+  }
+
+  void removeBill(String id) {
+    bills.removeWhere((b) => b['id'] == id);
+    save();
   }
 }

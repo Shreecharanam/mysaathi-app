@@ -62,6 +62,24 @@ Future<void> sendWhatsApp(
   }
 }
 
+class _ItemRow {
+  final name = TextEditingController();
+  final qty = TextEditingController(text: '1');
+  final rate = TextEditingController();
+  final gst = TextEditingController(text: '0');
+  double get qtyV => double.tryParse(qty.text.trim()) ?? 0;
+  double get rateV => double.tryParse(rate.text.trim()) ?? 0;
+  double get gstV => double.tryParse(gst.text.trim()) ?? 0;
+  double get lineTotal => qtyV * rateV;
+  double get lineGst => lineTotal * gstV / 100;
+  void dispose() {
+    name.dispose();
+    qty.dispose();
+    rate.dispose();
+    gst.dispose();
+  }
+}
+
 class LoginScreen extends StatefulWidget {
   final AppStore store;
   const LoginScreen({super.key, required this.store});
@@ -331,18 +349,24 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController upi;
   late final TextEditingController phone;
+  late final TextEditingController gst;
+  late final TextEditingController addr;
 
   @override
   void initState() {
     super.initState();
     upi = TextEditingController(text: widget.store.upiId);
     phone = TextEditingController(text: widget.store.centrePhone);
+    gst = TextEditingController(text: widget.store.gstin);
+    addr = TextEditingController(text: widget.store.shopAddress);
   }
 
   @override
   void dispose() {
     upi.dispose();
     phone.dispose();
+    gst.dispose();
+    addr.dispose();
     super.dispose();
   }
 
@@ -352,7 +376,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Data delete karein?'),
         content: const Text(
-            'Is centre ke saare log, attendance, fees aur description hat jayenge. '
+            'Is centre ke saare log, attendance, fees, bills aur description hat jayenge. '
             'Yeh wapas nahi aayega. Aapka account rahega.'),
         actions: [
           TextButton(
@@ -432,7 +456,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.qr_code)),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             TextField(
               controller: phone,
               keyboardType: TextInputType.phone,
@@ -441,10 +465,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.chat)),
             ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: gst,
+              decoration: const InputDecoration(
+                  labelText: 'GSTIN (bill ke liye, agar hai)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.receipt_long)),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: addr,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                  labelText: 'Shop ka address / naam (bill par chhapega)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.location_on)),
+            ),
             const SizedBox(height: 20),
             FilledButton(
               onPressed: () {
-                widget.store.setPayments(upi.text.trim(), phone.text.trim());
+                widget.store.setPayments(upi.text.trim(), phone.text.trim(),
+                    gst.text.trim(), addr.text.trim());
                 _toast(context, 'Saved');
               },
               style: FilledButton.styleFrom(
@@ -493,6 +535,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _newBill() {
+    showDialog(
+      context: context,
+      builder: (_) => NewBillDialog(store: widget.store),
+    );
+  }
+
   Future<void> _logout() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -521,9 +570,10 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final store = widget.store;
+    final shop = store.isShop;
     final pages = <Widget>[
       StudentsTab(store: store),
-      AttendanceTab(store: store),
+      shop ? BillsTab(store: store) : AttendanceTab(store: store),
       FeesTab(store: store),
     ];
     return PopScope(
@@ -580,7 +630,10 @@ class _HomeScreenState extends State<HomeScreen> {
         floatingActionButton: _index == 0
             ? FloatingActionButton(
                 onPressed: _addStudent, child: const Icon(Icons.add))
-            : null,
+            : (shop && _index == 1
+                ? FloatingActionButton(
+                    onPressed: _newBill, child: const Icon(Icons.add))
+                : null),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _index,
           onDestinationSelected: (i) => setState(() => _index = i),
@@ -588,13 +641,244 @@ class _HomeScreenState extends State<HomeScreen> {
             NavigationDestination(
                 icon: const Icon(Icons.people),
                 label: store.personWordPlural()),
-            const NavigationDestination(
-                icon: Icon(Icons.check_circle), label: 'Attendance'),
+            NavigationDestination(
+                icon: Icon(shop ? Icons.receipt_long : Icons.check_circle),
+                label: shop ? 'Billing' : 'Attendance'),
             const NavigationDestination(
                 icon: Icon(Icons.currency_rupee), label: 'Fees'),
           ],
         ),
       ),
+    );
+  }
+}
+
+class NewBillDialog extends StatefulWidget {
+  final AppStore store;
+  const NewBillDialog({super.key, required this.store});
+
+  @override
+  State<NewBillDialog> createState() => _NewBillDialogState();
+}
+
+class _NewBillDialogState extends State<NewBillDialog> {
+  final cust = TextEditingController();
+  final custPhone = TextEditingController();
+  final rows = <_ItemRow>[_ItemRow()];
+
+  @override
+  void dispose() {
+    cust.dispose();
+    custPhone.dispose();
+    for (final r in rows) {
+      r.dispose();
+    }
+    super.dispose();
+  }
+
+  double get subtotal =>
+      rows.fold(0.0, (a, r) => a + r.lineTotal);
+  double get gstTotal => rows.fold(0.0, (a, r) => a + r.lineGst);
+  double get total => subtotal + gstTotal;
+
+  void _save() {
+    final items = <Map<String, dynamic>>[];
+    for (final r in rows) {
+      if (r.name.text.trim().isEmpty) {
+        continue;
+      }
+      items.add({
+        'name': r.name.text.trim(),
+        'qty': r.qtyV,
+        'rate': r.rateV,
+        'gst': r.gstV,
+      });
+    }
+    if (items.isEmpty) {
+      _toast(context, 'Kam se kam ek item daalein');
+      return;
+    }
+    widget.store.addBill({
+      'id': DateTime.now().microsecondsSinceEpoch.toString(),
+      'customer': cust.text.trim().isEmpty ? 'Customer' : cust.text.trim(),
+      'phone': custPhone.text.trim(),
+      'date': fmtDate(DateTime.now()),
+      'items': items,
+      'subtotal': subtotal,
+      'gst': gstTotal,
+      'total': total,
+    });
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Naya Bill'),
+      content: SizedBox(
+        width: 360,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                  controller: cust,
+                  decoration: const InputDecoration(labelText: 'Customer ka naam')),
+              TextField(
+                  controller: custPhone,
+                  keyboardType: TextInputType.phone,
+                  decoration:
+                      const InputDecoration(labelText: 'Customer ka phone')),
+              const SizedBox(height: 12),
+              const Text('Items',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              for (var i = 0; i < rows.length; i++) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 4,
+                      child: TextField(
+                          controller: rows[i].name,
+                          decoration:
+                              const InputDecoration(labelText: 'Item')),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      flex: 2,
+                      child: TextField(
+                          controller: rows[i].qty,
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => setState(() {}),
+                          decoration:
+                              const InputDecoration(labelText: 'Qty')),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      flex: 2,
+                      child: TextField(
+                          controller: rows[i].rate,
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => setState(() {}),
+                          decoration:
+                              const InputDecoration(labelText: 'Rate')),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      flex: 2,
+                      child: TextField(
+                          controller: rows[i].gst,
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => setState(() {}),
+                          decoration:
+                              const InputDecoration(labelText: 'GST %')),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.remove_circle_outline, size: 20),
+                      onPressed: rows.length == 1
+                          ? null
+                          : () {
+                              setState(() {
+                                rows.removeAt(i).dispose();
+                              });
+                            },
+                    ),
+                  ],
+                ),
+              ],
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => setState(() => rows.add(_ItemRow())),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Item jodein'),
+                ),
+              ),
+              const Divider(),
+              Text('Subtotal: Rs ${subtotal.toStringAsFixed(2)}'),
+              Text('GST: Rs ${gstTotal.toStringAsFixed(2)}'),
+              Text('Total: Rs ${total.toStringAsFixed(2)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel')),
+        FilledButton(onPressed: _save, child: const Text('Save Bill')),
+      ],
+    );
+  }
+}
+
+class BillsTab extends StatelessWidget {
+  final AppStore store;
+  const BillsTab({super.key, required this.store});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: store,
+      builder: (context, _) {
+        if (store.bills.isEmpty) {
+          return const Center(
+              child: Text('Koi bill nahi. Neeche + dabayein.'));
+        }
+        return ListView.builder(
+          itemCount: store.bills.length,
+          itemBuilder: (context, i) {
+            final b = store.bills[i];
+            final custName = (b['customer'] ?? '') as String;
+            final date = (b['date'] ?? '') as String;
+            final tot = ((b['total'] ?? 0) as num).toDouble();
+            return ListTile(
+              leading: const CircleAvatar(child: Icon(Icons.receipt_long)),
+              title: Text(custName),
+              subtitle: Text('$date   -   Rs ${tot.toStringAsFixed(2)}'),
+              trailing: PopupMenuButton<String>(
+                onSelected: (v) {
+                  if (v == 'wa') {
+                    final items = (b['items'] ?? []) as List;
+                    final buf = StringBuffer();
+                    buf.writeln('*${store.centreName}*');
+                    if (store.shopAddress.isNotEmpty) {
+                      buf.writeln(store.shopAddress);
+                    }
+                    if (store.gstin.isNotEmpty) {
+                      buf.writeln('GSTIN: ${store.gstin}');
+                    }
+                    buf.writeln('---');
+                    buf.writeln('Customer: $custName');
+                    buf.writeln('Date: $date');
+                    buf.writeln('---');
+                    for (final it in items) {
+                      final m = it as Map;
+                      buf.writeln(
+                          '${m['name']}  x${m['qty']}  @${m['rate']}  GST ${m['gst']}%');
+                    }
+                    buf.writeln('---');
+                    buf.writeln(
+                        'Subtotal: Rs ${((b['subtotal'] ?? 0) as num).toStringAsFixed(2)}');
+                    buf.writeln(
+                        'GST: Rs ${((b['gst'] ?? 0) as num).toStringAsFixed(2)}');
+                    buf.writeln('*Total: Rs ${tot.toStringAsFixed(2)}*');
+                    sendWhatsApp(context, (b['phone'] ?? '') as String,
+                        buf.toString());
+                  } else if (v == 'del') {
+                    store.removeBill((b['id'] ?? '') as String);
+                  }
+                },
+                itemBuilder: (ctx) => const [
+                  PopupMenuItem(value: 'wa', child: Text('Bill WhatsApp par bhejein')),
+                  PopupMenuItem(value: 'del', child: Text('Delete')),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
