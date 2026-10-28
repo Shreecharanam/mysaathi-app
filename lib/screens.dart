@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import 'store.dart';
 import 'lang.dart';
+import 'theme.dart';
 
 MethodChannel _launcher = MethodChannel('mysaathi/launch');
 
@@ -223,7 +224,7 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SizedBox(height: 16),
-              Icon(Icons.school, size: 64, color: Color(0xFF1F4E79)),
+              Icon(Icons.school, size: 64, color: AppColors.navy),
               SizedBox(height: 10),
               Text(
                 'MySaathi',
@@ -231,7 +232,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F4E79),
+                  color: AppColors.navy,
                 ),
               ),
               Text(
@@ -442,7 +443,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     await Clipboard.setData(ClipboardData(text: b.toString()));
     if (context.mounted) {
-      _toast(context, 'CSV copy ho gaya - kahin paste kar lein');
+      _toast(context, tr('u_csv_copied'));
     }
   }
 
@@ -479,9 +480,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              'Poora account aur saara data hat jayega. Yeh wapas nahi aayega.',
-            ),
+            Text(tr('u_delete_warn')),
             SizedBox(height: 12),
             TextField(
               controller: ctrl,
@@ -518,11 +517,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Settings'),
-        backgroundColor: Color(0xFF1F4E79),
-        foregroundColor: Colors.white,
-      ),
+      appBar: AppBar(title: Text('Settings')),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(16),
         child: Column(
@@ -608,7 +603,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             OutlinedButton.icon(
               onPressed: () => _exportCsv(context),
               icon: Icon(Icons.download),
-              label: Text('Export / Backup (CSV)'),
+              label: Text(tr('u_export_csv')),
             ),
             SizedBox(height: 20),
             Text(
@@ -670,7 +665,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(tr('logout_q')),
-        content: Text('Aap login screen par jaayenge. Aapka data safe rahega.'),
+        content: Text(tr('u_logout_warn')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -738,8 +733,6 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: Text(store.centreName.isEmpty ? 'MySaathi' : store.centreName),
-          backgroundColor: Color(0xFF1F4E79),
-          foregroundColor: Colors.white,
           actions: [
             if (!shop)
               IconButton(
@@ -756,7 +749,7 @@ class _HomeScreenState extends State<HomeScreen> {
             if (!shop)
               IconButton(
                 icon: Icon(Icons.assignment),
-                tooltip: 'Tests',
+                tooltip: tr('u_tests'),
                 onPressed: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
@@ -809,7 +802,7 @@ class _HomeScreenState extends State<HomeScreen> {
             NavigationDestination(
               icon: Icon(Icons.dashboard_outlined),
               selectedIcon: Icon(Icons.dashboard),
-              label: 'Home',
+              label: tr('u_home'),
             ),
             NavigationDestination(
               icon: Icon(Icons.people),
@@ -1150,21 +1143,21 @@ class _AddPersonDialogState extends State<AddPersonDialog> {
           children: [
             TextField(
               controller: name,
-              decoration: InputDecoration(labelText: 'Name'),
+              decoration: InputDecoration(labelText: tr('u_name')),
             ),
             TextField(
               controller: phone,
               keyboardType: TextInputType.phone,
-              decoration: InputDecoration(labelText: 'Phone'),
+              decoration: InputDecoration(labelText: tr('u_phone')),
             ),
             TextField(
               controller: parent,
               keyboardType: TextInputType.phone,
-              decoration: InputDecoration(labelText: 'Parent phone'),
+              decoration: InputDecoration(labelText: tr('u_parent_phone')),
             ),
             TextField(
               controller: klass,
-              decoration: InputDecoration(labelText: 'Class'),
+              decoration: InputDecoration(labelText: tr('u_class')),
             ),
             DropdownButtonFormField<String>(
               value: batchSel,
@@ -1173,7 +1166,7 @@ class _AddPersonDialogState extends State<AddPersonDialog> {
                   .map(
                     (b) => DropdownMenuItem(
                       value: b,
-                      child: Text(b.isEmpty ? '— none —' : b),
+                      child: Text(b.isEmpty ? tr('u_none') : b),
                     ),
                   )
                   .toList(),
@@ -1296,7 +1289,7 @@ class _StudentsTabState extends State<StudentsTab> {
               padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
               child: TextField(
                 decoration: InputDecoration(
-                  hintText: 'Search name / phone / class',
+                  hintText: tr('u_search_hint'),
                   isDense: true,
                   prefixIcon: Icon(Icons.search),
                 ),
@@ -1318,7 +1311,7 @@ class _StudentsTabState extends State<StudentsTab> {
                           .map(
                             (b) => DropdownMenuItem(
                               value: b,
-                              child: Text(b.isEmpty ? 'All' : b),
+                              child: Text(b.isEmpty ? tr('u_all') : b),
                             ),
                           )
                           .toList(),
@@ -1367,7 +1360,7 @@ class _StudentsTabState extends State<StudentsTab> {
                             children: [
                               IconButton(
                                 icon: Icon(Icons.edit_outlined),
-                                tooltip: 'Edit',
+                                tooltip: tr('u_edit'),
                                 onPressed: () => showDialog(
                                   context: context,
                                   builder: (_) =>
@@ -1461,7 +1454,7 @@ class _AttendanceTabState extends State<AttendanceTab> {
                     .map(
                       (b) => DropdownMenuItem(
                         value: b,
-                        child: Text(b.isEmpty ? 'All' : b),
+                        child: Text(b.isEmpty ? tr('u_all') : b),
                       ),
                     )
                     .toList(),
@@ -1553,7 +1546,7 @@ class _FeesTabState extends State<FeesTab> {
                     ),
                   ),
                   FilterChip(
-                    label: Text('Only due'),
+                    label: Text(tr('u_only_due')),
                     selected: onlyDue,
                     onSelected: (v) => setState(() => onlyDue = v),
                   ),
@@ -1562,7 +1555,7 @@ class _FeesTabState extends State<FeesTab> {
             ),
             Expanded(
               child: list.isEmpty
-                  ? Center(child: Text('Sabki fees jama hai'))
+                  ? Center(child: Text(tr('u_all_paid')))
                   : ListView.builder(
                       itemCount: list.length,
                       itemBuilder: (context, i) {
@@ -1812,7 +1805,7 @@ class DashboardTab extends StatelessWidget {
                 Expanded(
                   child: _stat(
                     '$present/${store.students.length}',
-                    'Present today',
+                    tr('u_present_today'),
                     Icons.check_circle,
                     Colors.green,
                   ),
@@ -1825,7 +1818,7 @@ class DashboardTab extends StatelessWidget {
                 Expanded(
                   child: _stat(
                     'Rs ${collected.toStringAsFixed(0)}',
-                    'Collected',
+                    tr('u_collected'),
                     Icons.currency_rupee,
                     Colors.teal,
                   ),
@@ -1834,7 +1827,7 @@ class DashboardTab extends StatelessWidget {
                 Expanded(
                   child: _stat(
                     'Rs ${due.toStringAsFixed(0)}',
-                    'Due',
+                    tr('u_due'),
                     Icons.warning_amber,
                     Colors.red,
                   ),
@@ -1864,7 +1857,7 @@ class DashboardTab extends StatelessWidget {
                 MaterialPageRoute(builder: (_) => ReportsScreen(store: store)),
               ),
               icon: Icon(Icons.bar_chart),
-              label: Text('Reports dekhein'),
+              label: Text(tr('u_view_reports')),
             ),
           ],
         );
@@ -1880,11 +1873,7 @@ class ReportsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Reports'),
-        backgroundColor: Color(0xFF1F4E79),
-        foregroundColor: Colors.white,
-      ),
+      appBar: AppBar(title: Text(tr('u_reports'))),
       body: AnimatedBuilder(
         animation: store,
         builder: (context, _) {
@@ -1902,7 +1891,7 @@ class ReportsScreen extends StatelessWidget {
             padding: EdgeInsets.all(12),
             children: [
               Text(
-                'Fees',
+                tr('u_fees'),
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               SizedBox(height: 4),
@@ -1918,7 +1907,7 @@ class ReportsScreen extends StatelessWidget {
               ),
               SizedBox(height: 4),
               if (store.students.isEmpty)
-                Text('No data yet')
+                Text(tr('u_no_data'))
               else
                 for (final s in store.students)
                   Builder(
@@ -1952,11 +1941,7 @@ class BatchesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(store.groupWordPlural()),
-        backgroundColor: Color(0xFF1F4E79),
-        foregroundColor: Colors.white,
-      ),
+      appBar: AppBar(title: Text(store.groupWordPlural())),
       body: BatchesTab(store: store),
       floatingActionButton: FloatingActionButton(
         onPressed: () => showDialog(
@@ -1976,16 +1961,12 @@ class TestsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Tests'),
-        backgroundColor: Color(0xFF1F4E79),
-        foregroundColor: Colors.white,
-      ),
+      appBar: AppBar(title: Text(tr('u_tests'))),
       body: AnimatedBuilder(
         animation: store,
         builder: (context, _) {
           if (store.tests.isEmpty) {
-            return Center(child: Text('No tests yet. Tap + to add one.'));
+            return Center(child: Text(tr('u_no_tests')));
           }
           return ListView.builder(
             itemCount: store.tests.length,
@@ -2052,14 +2033,14 @@ class _AddTestDialogState extends State<AddTestDialog> {
       if (b.name.trim().isNotEmpty) batches.add(b.name.trim());
     }
     return AlertDialog(
-      title: Text('Add Test'),
+      title: Text(tr('u_add_test')),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: name,
-              decoration: InputDecoration(labelText: 'Test name'),
+              decoration: InputDecoration(labelText: tr('u_test_name')),
             ),
             DropdownButtonFormField<String>(
               value: batchSel,
@@ -2068,7 +2049,7 @@ class _AddTestDialogState extends State<AddTestDialog> {
                   .map(
                     (b) => DropdownMenuItem(
                       value: b,
-                      child: Text(b.isEmpty ? 'All' : b),
+                      child: Text(b.isEmpty ? tr('u_all') : b),
                     ),
                   )
                   .toList(),
@@ -2077,7 +2058,7 @@ class _AddTestDialogState extends State<AddTestDialog> {
             TextField(
               controller: maxMarks,
               keyboardType: TextInputType.number,
-              decoration: InputDecoration(labelText: 'Max marks'),
+              decoration: InputDecoration(labelText: tr('u_max_marks')),
             ),
           ],
         ),
@@ -2148,13 +2129,9 @@ class _MarkEntryScreenState extends State<MarkEntryScreen> {
   Widget build(BuildContext context) {
     final store = widget.store;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.test.name),
-        backgroundColor: Color(0xFF1F4E79),
-        foregroundColor: Colors.white,
-      ),
+      appBar: AppBar(title: Text(widget.test.name)),
       body: people.isEmpty
-          ? Center(child: Text('No students in this batch'))
+          ? Center(child: Text(tr('u_no_students_batch')))
           : ListView(
               padding: EdgeInsets.all(12),
               children: [
@@ -2190,7 +2167,7 @@ class _MarkEntryScreenState extends State<MarkEntryScreen> {
           Navigator.pop(context);
         },
         icon: Icon(Icons.save),
-        label: Text('Save'),
+        label: Text(tr('u_save')),
       ),
     );
   }
@@ -2275,7 +2252,7 @@ class CentreChooserScreen extends StatelessWidget {
         return Scaffold(
           appBar: AppBar(
             title: Text(tr('your_centres')),
-            backgroundColor: const Color(0xFF1F4E79),
+            backgroundColor: AppColors.navy,
             foregroundColor: Colors.white,
             actions: [
               IconButton(
