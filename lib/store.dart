@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'lang.dart';
 
-const String appVersion = 'v15';
+const String appVersion = 'v16';
 
 String stampDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
@@ -26,17 +28,19 @@ String periodKeyFor(DateTime d, String period) {
 }
 
 String periodLabel(String p) => switch (p) {
-      'yearly' => 'Yearly',
-      'half' => 'Half-Yearly',
-      'quarterly' => 'Quarterly',
-      'once' => 'One-time',
-      _ => 'Monthly',
-    };
+  'yearly' => 'Yearly',
+  'half' => 'Half-Yearly',
+  'quarterly' => 'Quarterly',
+  'once' => 'One-time',
+  _ => 'Monthly',
+};
 
 class Student {
   String id;
   String name;
   String phone;
+  String parentPhone;
+  String className;
   String batch;
   double fee;
   String joinDate;
@@ -46,6 +50,8 @@ class Student {
     required this.id,
     required this.name,
     this.phone = '',
+    this.parentPhone = '',
+    this.className = '',
     this.batch = '',
     this.fee = 0,
     this.joinDate = '',
@@ -53,24 +59,60 @@ class Student {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'phone': phone,
-        'batch': batch,
-        'fee': fee,
-        'joinDate': joinDate,
-        'feePeriod': feePeriod,
-      };
+    'id': id,
+    'name': name,
+    'phone': phone,
+    'parentPhone': parentPhone,
+    'className': className,
+    'batch': batch,
+    'fee': fee,
+    'joinDate': joinDate,
+    'feePeriod': feePeriod,
+  };
 
   factory Student.fromJson(Map<String, dynamic> j) => Student(
-        id: j['id'] as String,
-        name: j['name'] as String,
-        phone: (j['phone'] ?? '') as String,
-        batch: (j['batch'] ?? '') as String,
-        fee: ((j['fee'] ?? 0) as num).toDouble(),
-        joinDate: (j['joinDate'] ?? '') as String,
-        feePeriod: (j['feePeriod'] ?? 'monthly') as String,
-      );
+    id: j['id'] as String,
+    name: j['name'] as String,
+    phone: (j['phone'] ?? '') as String,
+    parentPhone: (j['parentPhone'] ?? '') as String,
+    className: (j['className'] ?? '') as String,
+    batch: (j['batch'] ?? '') as String,
+    fee: ((j['fee'] ?? 0) as num).toDouble(),
+    joinDate: (j['joinDate'] ?? '') as String,
+    feePeriod: (j['feePeriod'] ?? 'monthly') as String,
+  );
+}
+
+class Batch {
+  String id;
+  String name;
+  String subject;
+  String timing;
+  double fee;
+
+  Batch({
+    required this.id,
+    required this.name,
+    this.subject = '',
+    this.timing = '',
+    this.fee = 0,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'subject': subject,
+    'timing': timing,
+    'fee': fee,
+  };
+
+  factory Batch.fromJson(Map<String, dynamic> j) => Batch(
+    id: j['id'] as String,
+    name: (j['name'] ?? '') as String,
+    subject: (j['subject'] ?? '') as String,
+    timing: (j['timing'] ?? '') as String,
+    fee: ((j['fee'] ?? 0) as num).toDouble(),
+  );
 }
 
 class AppStore extends ChangeNotifier {
@@ -91,6 +133,7 @@ class AppStore extends ChangeNotifier {
   String lang = 'en';
   String? storageError;
   final List<Student> students = [];
+  final List<Batch> batches = [];
   final Map<String, List<String>> attendance = {};
   final Map<String, double> payments = {};
   final Map<String, List<Map<String, String>>> notes = {};
@@ -109,18 +152,19 @@ class AppStore extends ChangeNotifier {
   bool get isShop => centreType == 'shop';
 
   Map<String, dynamic> centreMap() => {
-        'centreName': centreName,
-        'centreType': centreType,
-        'upiId': upiId,
-        'centrePhone': centrePhone,
-        'gstin': gstin,
-        'shopAddress': shopAddress,
-        'students': students.map((e) => e.toJson()).toList(),
-        'attendance': attendance,
-        'payments': payments,
-        'notes': notes,
-        'bills': bills,
-      };
+    'centreName': centreName,
+    'centreType': centreType,
+    'upiId': upiId,
+    'centrePhone': centrePhone,
+    'gstin': gstin,
+    'shopAddress': shopAddress,
+    'students': students.map((e) => e.toJson()).toList(),
+    'batches': batches.map((e) => e.toJson()).toList(),
+    'attendance': attendance,
+    'payments': payments,
+    'notes': notes,
+    'bills': bills,
+  };
 
   void capture() {
     if (accountKey.isNotEmpty) {
@@ -130,6 +174,7 @@ class AppStore extends ChangeNotifier {
 
   void applyMap(Map<String, dynamic> d) {
     students.clear();
+    batches.clear();
     attendance.clear();
     payments.clear();
     notes.clear();
@@ -142,6 +187,9 @@ class AppStore extends ChangeNotifier {
     shopAddress = (d['shopAddress'] ?? '') as String;
     for (final e in ((d['students'] ?? []) as List)) {
       students.add(Student.fromJson(Map<String, dynamic>.from(e as Map)));
+    }
+    for (final e in ((d['batches'] ?? []) as List)) {
+      batches.add(Batch.fromJson(Map<String, dynamic>.from(e as Map)));
     }
     ((d['attendance'] ?? {}) as Map).forEach((k, v) {
       attendance[k as String] = (v as List).map((x) => x as String).toList();
@@ -229,11 +277,9 @@ class AppStore extends ChangeNotifier {
     try {
       final f = await dataFile();
       if (f != null) {
-        f.writeAsStringSync(jsonEncode({
-          'uid': uid,
-          'centres': accounts,
-          'last': lastCid,
-        }));
+        f.writeAsStringSync(
+          jsonEncode({'uid': uid, 'centres': accounts, 'last': lastCid}),
+        );
       }
     } catch (e) {
       storageError = e.toString();
@@ -252,8 +298,9 @@ class AppStore extends ChangeNotifier {
             final want = sessionUid.isNotEmpty ? sessionUid : fileUid;
             if (want.isEmpty || fileUid.isEmpty || fileUid == want) {
               accounts.clear();
-              (m['centres'] as Map)
-                  .forEach((k, v) => accounts[k.toString()] = v);
+              (m['centres'] as Map).forEach(
+                (k, v) => accounts[k.toString()] = v,
+              );
               _fileUid = fileUid;
               uid = want.isNotEmpty ? want : fileUid;
               lastCid = (m['last'] ?? '').toString();
@@ -308,8 +355,9 @@ class AppStore extends ChangeNotifier {
       if (doc.exists && doc.data() != null) {
         final d = doc.data()!;
         accounts.clear();
-        ((d['centres'] ?? {}) as Map)
-            .forEach((k, v) => accounts[k.toString()] = v);
+        ((d['centres'] ?? {}) as Map).forEach(
+          (k, v) => accounts[k.toString()] = v,
+        );
         lastCid = (d['last'] ?? '').toString();
         _fileUid = uid;
         cloudStatus = 'restored';
@@ -382,6 +430,7 @@ class AppStore extends ChangeNotifier {
     gstin = '';
     shopAddress = '';
     students.clear();
+    batches.clear();
     attendance.clear();
     payments.clear();
     notes.clear();
@@ -416,6 +465,7 @@ class AppStore extends ChangeNotifier {
 
   Future<void> clearCentreData() async {
     students.clear();
+    batches.clear();
     attendance.clear();
     payments.clear();
     notes.clear();
@@ -426,6 +476,7 @@ class AppStore extends ChangeNotifier {
   Future<void> deleteAccount() async {
     accounts.clear();
     students.clear();
+    batches.clear();
     attendance.clear();
     payments.clear();
     notes.clear();
@@ -455,6 +506,7 @@ class AppStore extends ChangeNotifier {
     gstin = '';
     shopAddress = '';
     students.clear();
+    batches.clear();
     attendance.clear();
     payments.clear();
     notes.clear();
@@ -479,31 +531,65 @@ class AppStore extends ChangeNotifier {
   }
 
   String personWord() => switch (centreType) {
-        'gym' => 'Member',
-        'shop' => 'Customer',
-        'other' => 'Person',
-        _ => 'Student',
-      };
+    'gym' => 'Member',
+    'shop' => 'Customer',
+    'other' => 'Person',
+    _ => 'Student',
+  };
 
   String personWordPlural() => switch (centreType) {
-        'gym' => tr('members'),
-        'shop' => tr('customers'),
-        'other' => tr('people'),
-        _ => tr('students'),
-      };
+    'gym' => tr('members'),
+    'shop' => tr('customers'),
+    'other' => tr('people'),
+    _ => tr('students'),
+  };
 
   String groupWord() => switch (centreType) {
-        'gym' => 'Plan',
-        'shop' => 'Item',
-        'other' => 'Group',
-        _ => 'Batch',
-      };
+    'gym' => 'Plan',
+    'shop' => 'Item',
+    'other' => 'Group',
+    _ => 'Batch',
+  };
+
+  String groupWordPlural() => switch (centreType) {
+    'gym' => 'Plans',
+    'shop' => 'Items',
+    'other' => 'Groups',
+    _ => 'Batches',
+  };
 
   String feeWord() => switch (centreType) {
-        'shop' => 'Amount',
-        'other' => 'Amount',
-        _ => 'Monthly Fee',
-      };
+    'shop' => 'Amount',
+    'other' => 'Amount',
+    _ => 'Monthly Fee',
+  };
+
+  void addBatch(Batch b) {
+    batches.add(b);
+    save();
+  }
+
+  void removeBatch(String id) {
+    String name = '';
+    for (final b in batches) {
+      if (b.id == id) name = b.name;
+    }
+    batches.removeWhere((x) => x.id == id);
+    if (name.isNotEmpty) {
+      for (final s in students) {
+        if (s.batch == name) s.batch = '';
+      }
+    }
+    save();
+  }
+
+  void updateStudent(Student s) {
+    final i = students.indexWhere((x) => x.id == s.id);
+    if (i >= 0) {
+      students[i] = s;
+      save();
+    }
+  }
 
   void addStudent(Student s) {
     students.add(s);

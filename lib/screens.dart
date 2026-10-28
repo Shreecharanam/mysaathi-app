@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
 import 'store.dart';
 import 'lang.dart';
 
@@ -12,6 +13,19 @@ String fmtDate(DateTime d) =>
 
 String isoDate(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+DateTime? parseStamp(String s) {
+  final p = s.split('-');
+  if (p.length == 3) {
+    final d = int.tryParse(p[0]);
+    final m = int.tryParse(p[1]);
+    final y = int.tryParse(p[2]);
+    if (d != null && m != null && y != null) {
+      return DateTime(y, m, d);
+    }
+  }
+  return null;
+}
 
 String waNumber(String raw) {
   var d = raw.replaceAll(RegExp('[^0-9]'), '');
@@ -35,12 +49,17 @@ void _toast(BuildContext context, String msg) {
 }
 
 Future<void> payUpi(
-    BuildContext context, String upiId, String name, double amount) async {
+  BuildContext context,
+  String upiId,
+  String name,
+  double amount,
+) async {
   if (upiId.trim().isEmpty) {
     _toast(context, tr('err_set_upi'));
     return;
   }
-  final url = 'upi://pay?pa=${Uri.encodeComponent(upiId)}'
+  final url =
+      'upi://pay?pa=${Uri.encodeComponent(upiId)}'
       '&pn=${Uri.encodeComponent(name)}'
       '&am=${amount.toStringAsFixed(2)}&cu=INR';
   final ok = await openUrl(url);
@@ -50,7 +69,10 @@ Future<void> payUpi(
 }
 
 Future<void> sendWhatsApp(
-    BuildContext context, String phone, String message) async {
+  BuildContext context,
+  String phone,
+  String message,
+) async {
   final n = waNumber(phone);
   if (n.isEmpty) {
     _toast(context, tr('err_no_phone'));
@@ -150,7 +172,9 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _busy = true);
     try {
       final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-          email: _email.text.trim(), password: _password.text);
+        email: _email.text.trim(),
+        password: _password.text,
+      );
       await store.loginWithUid(cred.user!.uid, _name, _type);
     } catch (e) {
       if (mounted) _toast(context, '${tr('err_account')}: $e');
@@ -171,7 +195,9 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _busy = true);
     try {
       final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: _email.text.trim(), password: _password.text);
+        email: _email.text.trim(),
+        password: _password.text,
+      );
       await store.loginWithUid(cred.user!.uid, _name, _type);
     } catch (e) {
       if (mounted) _toast(context, '${tr('err_login')}: $e');
@@ -199,33 +225,42 @@ class _LoginScreenState extends State<LoginScreen> {
               SizedBox(height: 16),
               Icon(Icons.school, size: 64, color: Color(0xFF1F4E79)),
               SizedBox(height: 10),
-              Text('MySaathi',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1F4E79))),
-              Text(tr('tagline'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.black54)),
+              Text(
+                'MySaathi',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 30,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1F4E79),
+                ),
+              ),
+              Text(
+                tr('tagline'),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.black54),
+              ),
               SizedBox(height: 4),
-              Text('${tr('version')} $appVersion',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: Colors.black45)),
+              Text(
+                '${tr('version')} $appVersion',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.black45),
+              ),
               AnimatedBuilder(
                 animation: widget.store,
                 builder: (context, _) {
                   final store = widget.store;
-                  final err = store.firebaseError ??
+                  final err =
+                      store.firebaseError ??
                       store.cloudError ??
                       store.storageError;
                   if (err != null) {
                     return Padding(
                       padding: EdgeInsets.only(top: 6),
-                      child: Text('${tr('problem')}: $err',
-                          textAlign: TextAlign.center,
-                          style:
-                              TextStyle(fontSize: 11, color: Colors.red)),
+                      child: Text(
+                        '${tr('problem')}: $err',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 11, color: Colors.red),
+                      ),
                     );
                   }
                   final String msg;
@@ -240,10 +275,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   }
                   return Padding(
                     padding: EdgeInsets.only(top: 6),
-                    child: Text(msg,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontSize: 11, color: Colors.black45)),
+                    child: Text(
+                      msg,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 11, color: Colors.black45),
+                    ),
                   );
                 },
               ),
@@ -251,24 +287,31 @@ class _LoginScreenState extends State<LoginScreen> {
               TextField(
                 controller: _centre,
                 decoration: InputDecoration(
-                    labelText: tr('centre_name'),
-                    helperText: tr('centre_name_help'),
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.store)),
+                  labelText: tr('centre_name'),
+                  helperText: tr('centre_name_help'),
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.store),
+                ),
               ),
               SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 value: _type,
                 decoration: InputDecoration(
-                    labelText: tr('business_type'),
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.category)),
+                  labelText: tr('business_type'),
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.category),
+                ),
                 items: [
                   DropdownMenuItem(
-                      value: 'tuition', child: Text(tr('type_tuition'))),
+                    value: 'tuition',
+                    child: Text(tr('type_tuition')),
+                  ),
                   DropdownMenuItem(value: 'gym', child: Text(tr('type_gym'))),
                   DropdownMenuItem(value: 'shop', child: Text(tr('type_shop'))),
-                  DropdownMenuItem(value: 'other', child: Text(tr('type_other'))),
+                  DropdownMenuItem(
+                    value: 'other',
+                    child: Text(tr('type_other')),
+                  ),
                 ],
                 onChanged: (v) => setState(() => _type = v ?? 'tuition'),
               ),
@@ -278,29 +321,34 @@ class _LoginScreenState extends State<LoginScreen> {
                 icon: Icon(Icons.account_circle),
                 label: Text(tr('signin_google')),
                 style: OutlinedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(vertical: 16)),
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                ),
               ),
               SizedBox(height: 10),
-              Text(tr('or_email'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: Colors.black45)),
+              Text(
+                tr('or_email'),
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.black45),
+              ),
               SizedBox(height: 10),
               TextField(
                 controller: _email,
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
-                    labelText: tr('email'),
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email)),
+                  labelText: tr('email'),
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.email),
+                ),
               ),
               SizedBox(height: 14),
               TextField(
                 controller: _password,
                 obscureText: true,
                 decoration: InputDecoration(
-                    labelText: tr('password'),
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock)),
+                  labelText: tr('password'),
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock),
+                ),
               ),
               SizedBox(height: 16),
               Row(
@@ -309,7 +357,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: OutlinedButton(
                       onPressed: _busy ? null : _login,
                       style: OutlinedButton.styleFrom(
-                          padding: EdgeInsets.symmetric(vertical: 16)),
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                      ),
                       child: Text(tr('login')),
                     ),
                   ),
@@ -318,7 +367,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: FilledButton(
                       onPressed: _busy ? null : _create,
                       style: FilledButton.styleFrom(
-                          padding: EdgeInsets.symmetric(vertical: 16)),
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                      ),
                       child: Text(tr('create_account')),
                     ),
                   ),
@@ -331,9 +381,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               SizedBox(height: 12),
               Text(
-                  tr('first_time_help'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: Colors.black45)),
+                tr('first_time_help'),
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.black45),
+              ),
             ],
           ),
         ),
@@ -379,15 +430,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(tr('delete_data_q')),
-        content: Text(
-            tr('delete_data_body')),
+        content: Text(tr('delete_data_body')),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(tr('cancel'))),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(tr('cancel')),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(tr('delete'))),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(tr('delete')),
+          ),
         ],
       ),
     );
@@ -407,22 +459,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-                'Poora account aur saara data hat jayega. Yeh wapas nahi aayega.'),
+              'Poora account aur saara data hat jayega. Yeh wapas nahi aayega.',
+            ),
             SizedBox(height: 12),
             TextField(
-                controller: ctrl,
-                decoration: InputDecoration(
-                    labelText: tr('type_delete'))),
+              controller: ctrl,
+              decoration: InputDecoration(labelText: tr('type_delete')),
+            ),
           ],
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(tr('cancel'))),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(tr('cancel')),
+          ),
           FilledButton(
-              onPressed: () =>
-                  Navigator.pop(ctx, ctrl.text.trim().toUpperCase() == 'DELETE'),
-              child: Text(tr('delete'))),
+            onPressed: () =>
+                Navigator.pop(ctx, ctrl.text.trim().toUpperCase() == 'DELETE'),
+            child: Text(tr('delete')),
+          ),
         ],
       ),
     );
@@ -455,45 +510,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
             TextField(
               controller: upi,
               decoration: InputDecoration(
-                  labelText: tr('upi_id'),
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.qr_code)),
+                labelText: tr('upi_id'),
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.qr_code),
+              ),
             ),
             SizedBox(height: 14),
             TextField(
               controller: phone,
               keyboardType: TextInputType.phone,
               decoration: InputDecoration(
-                  labelText: tr('centre_whatsapp'),
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.chat)),
+                labelText: tr('centre_whatsapp'),
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.chat),
+              ),
             ),
             SizedBox(height: 14),
             TextField(
               controller: gst,
               decoration: InputDecoration(
-                  labelText: tr('gstin'),
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.receipt_long)),
+                labelText: tr('gstin'),
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.receipt_long),
+              ),
             ),
             SizedBox(height: 14),
             TextField(
               controller: addr,
               maxLines: 2,
               decoration: InputDecoration(
-                  labelText: tr('shop_address'),
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.location_on)),
+                labelText: tr('shop_address'),
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.location_on),
+              ),
             ),
             SizedBox(height: 20),
             FilledButton(
               onPressed: () {
-                widget.store.setPayments(upi.text.trim(), phone.text.trim(),
-                    gst.text.trim(), addr.text.trim());
+                widget.store.setPayments(
+                  upi.text.trim(),
+                  phone.text.trim(),
+                  gst.text.trim(),
+                  addr.text.trim(),
+                );
                 _toast(context, tr('saved'));
               },
               style: FilledButton.styleFrom(
-                  padding: EdgeInsets.symmetric(vertical: 16)),
+                padding: EdgeInsets.symmetric(vertical: 16),
+              ),
               child: Text(tr('save')),
             ),
             SizedBox(height: 28),
@@ -502,13 +566,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             DropdownButtonFormField<String>(
               value: gLang,
               decoration: InputDecoration(
-                  labelText: tr('language'),
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.language)),
+                labelText: tr('language'),
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.language),
+              ),
               items: [
                 for (var i = 0; i < kLangCodes.length; i++)
                   DropdownMenuItem(
-                      value: kLangCodes[i], child: Text(kLangNames[i])),
+                    value: kLangCodes[i],
+                    child: Text(kLangNames[i]),
+                  ),
               ],
               onChanged: (v) {
                 if (v != null) {
@@ -517,9 +584,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
             SizedBox(height: 20),
-            Text(tr('delete_options'),
-                style:
-                    TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+            Text(
+              tr('delete_options'),
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+            ),
             SizedBox(height: 8),
             OutlinedButton(
               onPressed: _clearData,
@@ -563,20 +631,28 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _addBatch() {
+    showDialog(
+      context: context,
+      builder: (_) => AddBatchDialog(store: widget.store),
+    );
+  }
+
   Future<void> _logout() async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(tr('logout_q')),
-        content:
-            Text('Aap login screen par jaayenge. Aapka data safe rahega.'),
+        content: Text('Aap login screen par jaayenge. Aapka data safe rahega.'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(tr('cancel'))),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(tr('cancel')),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(tr('logout'))),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(tr('logout')),
+          ),
         ],
       ),
     );
@@ -599,6 +675,7 @@ class _HomeScreenState extends State<HomeScreen> {
       StudentsTab(store: store),
       shop ? BillsTab(store: store) : AttendanceTab(store: store),
       FeesTab(store: store),
+      if (!shop) BatchesTab(store: store),
     ];
     return PopScope(
       canPop: false,
@@ -617,11 +694,13 @@ class _HomeScreenState extends State<HomeScreen> {
             content: Text(tr('exit_body')),
             actions: [
               TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: Text(tr('cancel'))),
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(tr('cancel')),
+              ),
               FilledButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: Text(tr('exit'))),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(tr('exit')),
+              ),
             ],
           ),
         );
@@ -646,8 +725,11 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icon(Icons.settings),
               tooltip: 'Settings',
               onPressed: () {
-                Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => SettingsScreen(store: store)));
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SettingsScreen(store: store),
+                  ),
+                );
               },
             ),
             IconButton(
@@ -660,23 +742,41 @@ class _HomeScreenState extends State<HomeScreen> {
         body: pages[_index],
         floatingActionButton: _index == 0
             ? FloatingActionButton(
-                onPressed: _addStudent, child: Icon(Icons.add))
+                onPressed: _addStudent,
+                child: Icon(Icons.add),
+              )
             : (shop && _index == 1
-                ? FloatingActionButton(
-                    onPressed: _newBill, child: Icon(Icons.add))
-                : null),
+                  ? FloatingActionButton(
+                      onPressed: _newBill,
+                      child: Icon(Icons.add),
+                    )
+                  : (!shop && _index == 3
+                        ? FloatingActionButton(
+                            onPressed: _addBatch,
+                            child: Icon(Icons.add),
+                          )
+                        : null)),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _index,
           onDestinationSelected: (i) => setState(() => _index = i),
           destinations: [
             NavigationDestination(
-                icon: Icon(Icons.people),
-                label: store.personWordPlural()),
+              icon: Icon(Icons.people),
+              label: store.personWordPlural(),
+            ),
             NavigationDestination(
-                icon: Icon(shop ? Icons.receipt_long : Icons.check_circle),
-                label: shop ? tr('billing') : tr('attendance')),
+              icon: Icon(shop ? Icons.receipt_long : Icons.check_circle),
+              label: shop ? tr('billing') : tr('attendance'),
+            ),
             NavigationDestination(
-                icon: Icon(Icons.currency_rupee), label: tr('fees')),
+              icon: Icon(Icons.currency_rupee),
+              label: tr('fees'),
+            ),
+            if (!shop)
+              NavigationDestination(
+                icon: Icon(Icons.groups),
+                label: store.groupWordPlural(),
+              ),
           ],
         ),
       ),
@@ -707,8 +807,7 @@ class _NewBillDialogState extends State<NewBillDialog> {
     super.dispose();
   }
 
-  double get subtotal =>
-      rows.fold(0.0, (a, r) => a + r.lineTotal);
+  double get subtotal => rows.fold(0.0, (a, r) => a + r.lineTotal);
   double get gstTotal => rows.fold(0.0, (a, r) => a + r.lineGst);
   double get total => subtotal + gstTotal;
 
@@ -754,55 +853,57 @@ class _NewBillDialogState extends State<NewBillDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               TextField(
-                  controller: cust,
-                  decoration: InputDecoration(labelText: tr('customer_name'))),
+                controller: cust,
+                decoration: InputDecoration(labelText: tr('customer_name')),
+              ),
               TextField(
-                  controller: custPhone,
-                  keyboardType: TextInputType.phone,
-                  decoration:
-                      InputDecoration(labelText: tr('customer_phone'))),
+                controller: custPhone,
+                keyboardType: TextInputType.phone,
+                decoration: InputDecoration(labelText: tr('customer_phone')),
+              ),
               SizedBox(height: 12),
-              Text(tr('item'),
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(tr('item'), style: TextStyle(fontWeight: FontWeight.bold)),
               for (var i = 0; i < rows.length; i++) ...[
                 Row(
                   children: [
                     Expanded(
                       flex: 4,
                       child: TextField(
-                          controller: rows[i].name,
-                          decoration:
-                              InputDecoration(labelText: tr('item'))),
+                        controller: rows[i].name,
+                        decoration: InputDecoration(labelText: tr('item')),
+                      ),
                     ),
                     SizedBox(width: 6),
                     Expanded(
                       flex: 2,
                       child: TextField(
-                          controller: rows[i].qty,
-                          keyboardType: TextInputType.number,
-                          onChanged: (_) => setState(() {}),
-                          decoration:
-                              InputDecoration(labelText: tr('qty'))),
+                        controller: rows[i].qty,
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => setState(() {}),
+                        decoration: InputDecoration(labelText: tr('qty')),
+                      ),
                     ),
                     SizedBox(width: 6),
                     Expanded(
                       flex: 2,
                       child: TextField(
-                          controller: rows[i].rate,
-                          keyboardType: TextInputType.number,
-                          onChanged: (_) => setState(() {}),
-                          decoration:
-                              InputDecoration(labelText: tr('rate'))),
+                        controller: rows[i].rate,
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => setState(() {}),
+                        decoration: InputDecoration(labelText: tr('rate')),
+                      ),
                     ),
                     SizedBox(width: 6),
                     Expanded(
                       flex: 2,
                       child: TextField(
-                          controller: rows[i].gst,
-                          keyboardType: TextInputType.number,
-                          onChanged: (_) => setState(() {}),
-                          decoration:
-                              InputDecoration(labelText: tr('gst_percent'))),
+                        controller: rows[i].gst,
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => setState(() {}),
+                        decoration: InputDecoration(
+                          labelText: tr('gst_percent'),
+                        ),
+                      ),
                     ),
                     IconButton(
                       icon: Icon(Icons.remove_circle_outline, size: 20),
@@ -828,16 +929,19 @@ class _NewBillDialogState extends State<NewBillDialog> {
               Divider(),
               Text('Subtotal: Rs ${subtotal.toStringAsFixed(2)}'),
               Text('GST: Rs ${gstTotal.toStringAsFixed(2)}'),
-              Text('Total: Rs ${total.toStringAsFixed(2)}',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(
+                'Total: Rs ${total.toStringAsFixed(2)}',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ],
           ),
         ),
       ),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(tr('cancel'))),
+          onPressed: () => Navigator.pop(context),
+          child: Text(tr('cancel')),
+        ),
         FilledButton(onPressed: _save, child: Text(tr('save_bill'))),
       ],
     );
@@ -854,8 +958,7 @@ class BillsTab extends StatelessWidget {
       animation: store,
       builder: (context, _) {
         if (store.bills.isEmpty) {
-          return Center(
-              child: Text(tr('no_bills')));
+          return Center(child: Text(tr('no_bills')));
         }
         return ListView.builder(
           itemCount: store.bills.length,
@@ -887,16 +990,22 @@ class BillsTab extends StatelessWidget {
                     for (final it in items) {
                       final m = it as Map;
                       buf.writeln(
-                          '${m['name']}  x${m['qty']}  @${m['rate']}  GST ${m['gst']}%');
+                        '${m['name']}  x${m['qty']}  @${m['rate']}  GST ${m['gst']}%',
+                      );
                     }
                     buf.writeln('---');
                     buf.writeln(
-                        'Subtotal: Rs ${((b['subtotal'] ?? 0) as num).toStringAsFixed(2)}');
+                      'Subtotal: Rs ${((b['subtotal'] ?? 0) as num).toStringAsFixed(2)}',
+                    );
                     buf.writeln(
-                        'GST: Rs ${((b['gst'] ?? 0) as num).toStringAsFixed(2)}');
+                      'GST: Rs ${((b['gst'] ?? 0) as num).toStringAsFixed(2)}',
+                    );
                     buf.writeln('*Total: Rs ${tot.toStringAsFixed(2)}*');
-                    sendWhatsApp(context, (b['phone'] ?? '') as String,
-                        buf.toString());
+                    sendWhatsApp(
+                      context,
+                      (b['phone'] ?? '') as String,
+                      buf.toString(),
+                    );
                   } else if (v == 'del') {
                     store.removeBill((b['id'] ?? '') as String);
                   }
@@ -916,7 +1025,8 @@ class BillsTab extends StatelessWidget {
 
 class AddPersonDialog extends StatefulWidget {
   final AppStore store;
-  AddPersonDialog({super.key, required this.store});
+  final Student? edit;
+  AddPersonDialog({super.key, required this.store, this.edit});
 
   @override
   State<AddPersonDialog> createState() => _AddPersonDialogState();
@@ -925,16 +1035,35 @@ class AddPersonDialog extends StatefulWidget {
 class _AddPersonDialogState extends State<AddPersonDialog> {
   final name = TextEditingController();
   final phone = TextEditingController();
-  final batch = TextEditingController();
+  final parent = TextEditingController();
+  final klass = TextEditingController();
   final fee = TextEditingController();
   DateTime join = DateTime.now();
   String period = 'monthly';
+  String batchSel = '';
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.edit;
+    if (e != null) {
+      name.text = e.name;
+      phone.text = e.phone;
+      parent.text = e.parentPhone;
+      klass.text = e.className;
+      fee.text = e.fee > 0 ? e.fee.toStringAsFixed(0) : '';
+      period = e.feePeriod;
+      batchSel = e.batch;
+      join = parseStamp(e.joinDate) ?? DateTime.now();
+    }
+  }
 
   @override
   void dispose() {
     name.dispose();
     phone.dispose();
-    batch.dispose();
+    parent.dispose();
+    klass.dispose();
     fee.dispose();
     super.dispose();
   }
@@ -951,38 +1080,78 @@ class _AddPersonDialogState extends State<AddPersonDialog> {
     }
   }
 
+  List<String> _batchOptions(AppStore store) {
+    final names = <String>{};
+    for (final b in store.batches) {
+      if (b.name.trim().isNotEmpty) names.add(b.name.trim());
+    }
+    if (batchSel.trim().isNotEmpty) names.add(batchSel.trim());
+    return <String>['', ...names.toList()];
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = widget.store;
     return AlertDialog(
-      title: Text('Add ${store.personWord()}'),
+      title: Text(
+        widget.edit == null
+            ? 'Add ${store.personWord()}'
+            : 'Edit ${store.personWord()}',
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-                controller: name,
-                decoration: InputDecoration(labelText: 'Name')),
+              controller: name,
+              decoration: InputDecoration(labelText: 'Name'),
+            ),
             TextField(
-                controller: phone,
-                keyboardType: TextInputType.phone,
-                decoration: InputDecoration(labelText: 'Phone')),
+              controller: phone,
+              keyboardType: TextInputType.phone,
+              decoration: InputDecoration(labelText: 'Phone'),
+            ),
             TextField(
-                controller: batch,
-                decoration: InputDecoration(labelText: store.groupWord())),
+              controller: parent,
+              keyboardType: TextInputType.phone,
+              decoration: InputDecoration(labelText: 'Parent phone'),
+            ),
             TextField(
-                controller: fee,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(labelText: store.feeWord())),
+              controller: klass,
+              decoration: InputDecoration(labelText: 'Class'),
+            ),
+            DropdownButtonFormField<String>(
+              value: batchSel,
+              decoration: InputDecoration(labelText: store.groupWord()),
+              items: _batchOptions(store)
+                  .map(
+                    (b) => DropdownMenuItem(
+                      value: b,
+                      child: Text(b.isEmpty ? '— none —' : b),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (v) => setState(() => batchSel = v ?? ''),
+            ),
+            TextField(
+              controller: fee,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(labelText: store.feeWord()),
+            ),
             SizedBox(height: 8),
             DropdownButtonFormField<String>(
               value: period,
               decoration: InputDecoration(labelText: tr('fee_period')),
               items: [
-                DropdownMenuItem(value: 'monthly', child: Text(tr('p_monthly'))),
-                DropdownMenuItem(value: 'quarterly', child: Text(tr('p_quarterly'))),
                 DropdownMenuItem(
-                    value: 'half', child: Text(tr('p_half'))),
+                  value: 'monthly',
+                  child: Text(tr('p_monthly')),
+                ),
+                DropdownMenuItem(
+                  value: 'quarterly',
+                  child: Text(tr('p_quarterly')),
+                ),
+                DropdownMenuItem(value: 'half', child: Text(tr('p_half'))),
                 DropdownMenuItem(value: 'yearly', child: Text(tr('p_yearly'))),
                 DropdownMenuItem(value: 'once', child: Text(tr('p_once'))),
               ],
@@ -1004,62 +1173,149 @@ class _AddPersonDialogState extends State<AddPersonDialog> {
       ),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(tr('cancel'))),
+          onPressed: () => Navigator.pop(context),
+          child: Text(tr('cancel')),
+        ),
         FilledButton(
           onPressed: () {
             if (name.text.trim().isEmpty) {
               return;
             }
-            store.addStudent(Student(
-              id: DateTime.now().microsecondsSinceEpoch.toString(),
+            final s = Student(
+              id:
+                  widget.edit?.id ??
+                  DateTime.now().microsecondsSinceEpoch.toString(),
               name: name.text.trim(),
               phone: phone.text.trim(),
-              batch: batch.text.trim(),
+              parentPhone: parent.text.trim(),
+              className: klass.text.trim(),
+              batch: batchSel,
               fee: double.tryParse(fee.text.trim()) ?? 0,
               joinDate: fmtDate(join),
               feePeriod: period,
-            ));
+            );
+            if (widget.edit == null) {
+              store.addStudent(s);
+            } else {
+              store.updateStudent(s);
+            }
             Navigator.pop(context);
           },
-          child: Text('Add'),
+          child: Text(widget.edit == null ? 'Add' : 'Save'),
         ),
       ],
     );
   }
 }
 
-class StudentsTab extends StatelessWidget {
+class StudentsTab extends StatefulWidget {
   final AppStore store;
   StudentsTab({super.key, required this.store});
 
   @override
+  State<StudentsTab> createState() => _StudentsTabState();
+}
+
+class _StudentsTabState extends State<StudentsTab> {
+  String batchFilter = '';
+
+  @override
   Widget build(BuildContext context) {
+    final store = widget.store;
     return AnimatedBuilder(
       animation: store,
       builder: (context, _) {
-        if (store.students.isEmpty) {
-          return Center(
-              child: Text(
-                  'No ${store.personWordPlural().toLowerCase()} yet. Tap + to add one.'));
+        final batches = <String>{''};
+        for (final s in store.students) {
+          if (s.batch.trim().isNotEmpty) batches.add(s.batch.trim());
         }
-        return ListView.builder(
-          itemCount: store.students.length,
-          itemBuilder: (context, i) {
-            final s = store.students[i];
-            return ListTile(
-              leading: CircleAvatar(
-                child: Text(s.name.isEmpty ? '?' : s.name[0].toUpperCase()),
+        final list = batchFilter.isEmpty
+            ? store.students
+            : store.students.where((s) => s.batch == batchFilter).toList();
+        return Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: batches.contains(batchFilter) ? batchFilter : '',
+                      decoration: InputDecoration(
+                        labelText: store.groupWord(),
+                        isDense: true,
+                      ),
+                      items: batches
+                          .map(
+                            (b) => DropdownMenuItem(
+                              value: b,
+                              child: Text(b.isEmpty ? 'All' : b),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => setState(() => batchFilter = v ?? ''),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    '${list.length}',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
               ),
-              title: Text(s.name),
-              subtitle: Text(
-                  '${s.batch}   -   Rs ${s.fee.toStringAsFixed(0)} ${periodLabel(s.feePeriod)}   -   ${tr('joined')} ${s.joinDate}'),
-              trailing: IconButton(
-                icon: Icon(Icons.delete_outline),
-                onPressed: () => store.removeStudent(s.id),
-              ),
-            );
-          },
+            ),
+            Expanded(
+              child: list.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No ${store.personWordPlural().toLowerCase()} yet. Tap + to add one.',
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: list.length,
+                      itemBuilder: (context, i) {
+                        final s = list[i];
+                        final parts = <String>[];
+                        if (s.className.isNotEmpty)
+                          parts.add('Class ${s.className}');
+                        if (s.batch.isNotEmpty) parts.add(s.batch);
+                        parts.add(
+                          'Rs ${s.fee.toStringAsFixed(0)} ${periodLabel(s.feePeriod)}',
+                        );
+                        if (s.parentPhone.isNotEmpty) {
+                          parts.add('P: ${s.parentPhone}');
+                        }
+                        return ListTile(
+                          leading: CircleAvatar(
+                            child: Text(
+                              s.name.isEmpty ? '?' : s.name[0].toUpperCase(),
+                            ),
+                          ),
+                          title: Text(s.name),
+                          subtitle: Text(parts.join('  •  ')),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.edit_outlined),
+                                tooltip: 'Edit',
+                                onPressed: () => showDialog(
+                                  context: context,
+                                  builder: (_) =>
+                                      AddPersonDialog(store: store, edit: s),
+                                ),
+                              ),
+                              IconButton(
+                                icon: Icon(Icons.delete_outline),
+                                onPressed: () => store.removeStudent(s.id),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
         );
       },
     );
@@ -1076,6 +1332,7 @@ class AttendanceTab extends StatefulWidget {
 
 class _AttendanceTabState extends State<AttendanceTab> {
   DateTime date = DateTime.now();
+  String batchFilter = '';
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -1096,6 +1353,13 @@ class _AttendanceTabState extends State<AttendanceTab> {
     return AnimatedBuilder(
       animation: store,
       builder: (context, _) {
+        final batches = <String>{''};
+        for (final s in store.students) {
+          if (s.batch.trim().isNotEmpty) batches.add(s.batch.trim());
+        }
+        final shown = batchFilter.isEmpty
+            ? store.students
+            : store.students.where((s) => s.batch == batchFilter).toList();
         return Column(
           children: [
             Padding(
@@ -1103,8 +1367,10 @@ class _AttendanceTabState extends State<AttendanceTab> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text('Date: ${fmtDate(date)}',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: Text(
+                      'Date: ${fmtDate(date)}',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                   TextButton.icon(
                     onPressed: _pickDate,
@@ -1114,18 +1380,40 @@ class _AttendanceTabState extends State<AttendanceTab> {
                 ],
               ),
             ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: DropdownButtonFormField<String>(
+                value: batches.contains(batchFilter) ? batchFilter : '',
+                decoration: InputDecoration(
+                  labelText: store.groupWord(),
+                  isDense: true,
+                ),
+                items: batches
+                    .map(
+                      (b) => DropdownMenuItem(
+                        value: b,
+                        child: Text(b.isEmpty ? 'All' : b),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (v) => setState(() => batchFilter = v ?? ''),
+              ),
+            ),
             if (store.students.isEmpty)
-              Expanded(
-                  child: Center(child: Text(tr('add_people_first'))))
+              Expanded(child: Center(child: Text(tr('add_people_first'))))
             else ...[
-              Text(
-                  'Present: ${store.students.where((s) => store.isPresent(key, s.id)).length} / ${store.students.length}',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              Padding(
+                padding: EdgeInsets.only(top: 6, bottom: 4),
+                child: Text(
+                  'Present: ${shown.where((s) => store.isPresent(key, s.id)).length} / ${shown.length}',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
               Expanded(
                 child: ListView.builder(
-                  itemCount: store.students.length,
+                  itemCount: shown.length,
                   itemBuilder: (context, i) {
-                    final s = store.students[i];
+                    final s = shown[i];
                     return CheckboxListTile(
                       value: store.isPresent(key, s.id),
                       onChanged: (_) => store.toggleAttendance(key, s.id),
@@ -1143,56 +1431,169 @@ class _AttendanceTabState extends State<AttendanceTab> {
   }
 }
 
-class FeesTab extends StatelessWidget {
+class FeesTab extends StatefulWidget {
   final AppStore store;
   FeesTab({super.key, required this.store});
 
   @override
+  State<FeesTab> createState() => _FeesTabState();
+}
+
+class _FeesTabState extends State<FeesTab> {
+  bool onlyDue = false;
+
+  @override
   Widget build(BuildContext context) {
+    final store = widget.store;
     return AnimatedBuilder(
       animation: store,
       builder: (context, _) {
         if (store.students.isEmpty) {
           return Center(child: Text(tr('add_people_first')));
         }
-        return ListView.builder(
-          itemCount: store.students.length,
-          itemBuilder: (context, i) {
-            final s = store.students[i];
-            final pk = periodKeyFor(DateTime.now(), s.feePeriod);
-            final paid = store.paidFor(s.id, pk);
-            final due = s.fee - paid;
-            final pendingMsg = 'Hello ${s.name}, your fees of '
-                'Rs ${due.toStringAsFixed(0)} at ${store.centreName} are pending. '
-                'Please pay by UPI.'
-                '${store.upiId.isEmpty ? '' : ' UPI ID: ${store.upiId}'} Thank you.';
-            final paidMsg = 'Hello ${s.name}, ${store.centreName} has received '
-                'Rs ${paid.toStringAsFixed(0)}. Thank you!';
-            return ListTile(
-              title: Text(s.name),
-              subtitle: Text(
-                  '${periodLabel(s.feePeriod)}: Rs ${s.fee.toStringAsFixed(0)}   -   Paid Rs ${paid.toStringAsFixed(0)}   -   ${due <= 0 ? tr('paid') : 'Due Rs ${due.toStringAsFixed(0)}'}'),
-              trailing: PopupMenuButton<String>(
-                onSelected: (v) {
-                  if (v == 'upi') {
-                    payUpi(context, store.upiId, store.centreName, due);
-                  } else if (v == 'wa') {
-                    sendWhatsApp(
-                        context, s.phone, due > 0 ? pendingMsg : paidMsg);
-                  } else if (v == 'paid') {
-                    store.setPaid(s.id, pk, s.fee);
-                  }
-                },
-                itemBuilder: (ctx) => [
-                  if (due > 0)
-                    PopupMenuItem(
-                        value: 'upi', child: Text(tr('pay_upi'))),
-                  PopupMenuItem(
-                      value: 'wa', child: Text(tr('send_whatsapp'))),
-                  if (due > 0)
-                    PopupMenuItem(
-                        value: 'paid', child: Text(tr('mark_paid'))),
+        final now = DateTime.now();
+        double totalDue = 0;
+        int dueCount = 0;
+        for (final s in store.students) {
+          final pk = periodKeyFor(now, s.feePeriod);
+          final due = s.fee - store.paidFor(s.id, pk);
+          if (due > 0) {
+            totalDue += due;
+            dueCount++;
+          }
+        }
+        final list = onlyDue
+            ? store.students.where((s) {
+                final pk = periodKeyFor(now, s.feePeriod);
+                return (s.fee - store.paidFor(s.id, pk)) > 0;
+              }).toList()
+            : store.students;
+        return Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Due: Rs ${totalDue.toStringAsFixed(0)}  ($dueCount)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red.shade700,
+                      ),
+                    ),
+                  ),
+                  FilterChip(
+                    label: Text('Only due'),
+                    selected: onlyDue,
+                    onSelected: (v) => setState(() => onlyDue = v),
+                  ),
                 ],
+              ),
+            ),
+            Expanded(
+              child: list.isEmpty
+                  ? Center(child: Text('Sabki fees jama hai'))
+                  : ListView.builder(
+                      itemCount: list.length,
+                      itemBuilder: (context, i) {
+                        final s = list[i];
+                        final pk = periodKeyFor(DateTime.now(), s.feePeriod);
+                        final paid = store.paidFor(s.id, pk);
+                        final due = s.fee - paid;
+                        final pendingMsg =
+                            'Hello ${s.name}, your fees of '
+                            'Rs ${due.toStringAsFixed(0)} at ${store.centreName} are pending. '
+                            'Please pay by UPI.'
+                            '${store.upiId.isEmpty ? '' : ' UPI ID: ${store.upiId}'} Thank you.';
+                        final paidMsg =
+                            'Hello ${s.name}, ${store.centreName} has received '
+                            'Rs ${paid.toStringAsFixed(0)}. Thank you!';
+                        return ListTile(
+                          title: Text(s.name),
+                          subtitle: Text(
+                            '${periodLabel(s.feePeriod)}: Rs ${s.fee.toStringAsFixed(0)}   -   Paid Rs ${paid.toStringAsFixed(0)}   -   ${due <= 0 ? tr('paid') : 'Due Rs ${due.toStringAsFixed(0)}'}',
+                          ),
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (v) {
+                              if (v == 'upi') {
+                                payUpi(
+                                  context,
+                                  store.upiId,
+                                  store.centreName,
+                                  due,
+                                );
+                              } else if (v == 'wa') {
+                                sendWhatsApp(
+                                  context,
+                                  s.phone,
+                                  due > 0 ? pendingMsg : paidMsg,
+                                );
+                              } else if (v == 'paid') {
+                                store.setPaid(s.id, pk, s.fee);
+                              }
+                            },
+                            itemBuilder: (ctx) => [
+                              if (due > 0)
+                                PopupMenuItem(
+                                  value: 'upi',
+                                  child: Text(tr('pay_upi')),
+                                ),
+                              PopupMenuItem(
+                                value: 'wa',
+                                child: Text(tr('send_whatsapp')),
+                              ),
+                              if (due > 0)
+                                PopupMenuItem(
+                                  value: 'paid',
+                                  child: Text(tr('mark_paid')),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class BatchesTab extends StatelessWidget {
+  final AppStore store;
+  BatchesTab({super.key, required this.store});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: store,
+      builder: (context, _) {
+        if (store.batches.isEmpty) {
+          return Center(
+            child: Text(
+              'No ${store.groupWordPlural().toLowerCase()} yet. Tap + to add one.',
+            ),
+          );
+        }
+        return ListView.builder(
+          itemCount: store.batches.length,
+          itemBuilder: (context, i) {
+            final b = store.batches[i];
+            final count = store.students.where((s) => s.batch == b.name).length;
+            final bits = <String>[];
+            if (b.subject.isNotEmpty) bits.add(b.subject);
+            if (b.timing.isNotEmpty) bits.add(b.timing);
+            bits.add('Rs ${b.fee.toStringAsFixed(0)}');
+            bits.add('$count ${store.personWordPlural().toLowerCase()}');
+            return ListTile(
+              leading: CircleAvatar(child: Icon(Icons.groups)),
+              title: Text(b.name),
+              subtitle: Text(bits.join('  •  ')),
+              trailing: IconButton(
+                icon: Icon(Icons.delete_outline),
+                onPressed: () => store.removeBatch(b.id),
               ),
             );
           },
@@ -1202,6 +1603,85 @@ class FeesTab extends StatelessWidget {
   }
 }
 
+class AddBatchDialog extends StatefulWidget {
+  final AppStore store;
+  AddBatchDialog({super.key, required this.store});
+
+  @override
+  State<AddBatchDialog> createState() => _AddBatchDialogState();
+}
+
+class _AddBatchDialogState extends State<AddBatchDialog> {
+  final name = TextEditingController();
+  final subject = TextEditingController();
+  final timing = TextEditingController();
+  final fee = TextEditingController();
+
+  @override
+  void dispose() {
+    name.dispose();
+    subject.dispose();
+    timing.dispose();
+    fee.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final store = widget.store;
+    return AlertDialog(
+      title: Text('Add ${store.groupWord()}'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: name,
+              decoration: InputDecoration(
+                labelText: '${store.groupWord()} name (e.g. Class 10 Maths)',
+              ),
+            ),
+            TextField(
+              controller: subject,
+              decoration: InputDecoration(labelText: 'Subject'),
+            ),
+            TextField(
+              controller: timing,
+              decoration: InputDecoration(labelText: 'Timing (e.g. 5-6 PM)'),
+            ),
+            TextField(
+              controller: fee,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(labelText: store.feeWord()),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(tr('cancel')),
+        ),
+        FilledButton(
+          onPressed: () {
+            if (name.text.trim().isEmpty) return;
+            store.addBatch(
+              Batch(
+                id: DateTime.now().microsecondsSinceEpoch.toString(),
+                name: name.text.trim(),
+                subject: subject.text.trim(),
+                timing: timing.text.trim(),
+                fee: double.tryParse(fee.text.trim()) ?? 0,
+              ),
+            );
+            Navigator.pop(context);
+          },
+          child: Text('Add'),
+        ),
+      ],
+    );
+  }
+}
 
 class CentreChooserScreen extends StatelessWidget {
   final AppStore store;
@@ -1229,21 +1709,27 @@ class CentreChooserScreen extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
-                  controller: name,
-                  decoration: InputDecoration(labelText: tr('centre_name'))),
+                controller: name,
+                decoration: InputDecoration(labelText: tr('centre_name')),
+              ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: type,
                 decoration: InputDecoration(
-                    labelText: tr('business_type'),
-                    border: const OutlineInputBorder()),
+                  labelText: tr('business_type'),
+                  border: const OutlineInputBorder(),
+                ),
                 items: [
                   DropdownMenuItem(
-                      value: 'tuition', child: Text(tr('type_tuition'))),
+                    value: 'tuition',
+                    child: Text(tr('type_tuition')),
+                  ),
                   DropdownMenuItem(value: 'gym', child: Text(tr('type_gym'))),
                   DropdownMenuItem(value: 'shop', child: Text(tr('type_shop'))),
                   DropdownMenuItem(
-                      value: 'other', child: Text(tr('type_other'))),
+                    value: 'other',
+                    child: Text(tr('type_other')),
+                  ),
                 ],
                 onChanged: (v) => setSt(() => type = v ?? 'tuition'),
               ),
@@ -1251,11 +1737,13 @@ class CentreChooserScreen extends StatelessWidget {
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: Text(tr('cancel'))),
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('cancel')),
+            ),
             FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: Text(tr('add_centre'))),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(tr('add_centre')),
+            ),
           ],
         ),
       ),
@@ -1278,9 +1766,10 @@ class CentreChooserScreen extends StatelessWidget {
             foregroundColor: Colors.white,
             actions: [
               IconButton(
-                  icon: const Icon(Icons.logout),
-                  tooltip: tr('logout'),
-                  onPressed: () => _logout(context)),
+                icon: const Icon(Icons.logout),
+                tooltip: tr('logout'),
+                onPressed: () => _logout(context),
+              ),
             ],
           ),
           body: ids.isEmpty
@@ -1291,7 +1780,8 @@ class CentreChooserScreen extends StatelessWidget {
                     final cid = ids[i];
                     return ListTile(
                       leading: CircleAvatar(
-                          child: Icon(_typeIcon(store.centreTypeOf(cid)))),
+                        child: Icon(_typeIcon(store.centreTypeOf(cid))),
+                      ),
                       title: Text(store.centreLabel(cid)),
                       subtitle: Text(_typeName(store.centreTypeOf(cid))),
                       trailing: IconButton(
@@ -1314,15 +1804,15 @@ class CentreChooserScreen extends StatelessWidget {
 }
 
 IconData _typeIcon(String t) => switch (t) {
-      'gym' => Icons.fitness_center,
-      'shop' => Icons.storefront,
-      'other' => Icons.category,
-      _ => Icons.school,
-    };
+  'gym' => Icons.fitness_center,
+  'shop' => Icons.storefront,
+  'other' => Icons.category,
+  _ => Icons.school,
+};
 
 String _typeName(String t) => switch (t) {
-      'gym' => tr('type_gym'),
-      'shop' => tr('type_shop'),
-      'other' => tr('type_other'),
-      _ => tr('type_tuition'),
-    };
+  'gym' => tr('type_gym'),
+  'shop' => tr('type_shop'),
+  'other' => tr('type_other'),
+  _ => tr('type_tuition'),
+};
