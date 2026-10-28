@@ -425,6 +425,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
+  Future<void> _exportCsv(BuildContext context) async {
+    final store = widget.store;
+    final b = StringBuffer();
+    b.writeln('Name,Phone,ParentPhone,Class,Batch,Fee,FeePeriod,JoinDate');
+    for (final s in store.students) {
+      b.writeln(
+        '"${s.name}","${s.phone}","${s.parentPhone}","${s.className}",'
+        '"${s.batch}",${s.fee},"${s.feePeriod}","${s.joinDate}"',
+      );
+    }
+    b.writeln('');
+    b.writeln('Batch,Subject,Timing,Fee');
+    for (final x in store.batches) {
+      b.writeln('"${x.name}","${x.subject}","${x.timing}",${x.fee}');
+    }
+    await Clipboard.setData(ClipboardData(text: b.toString()));
+    if (context.mounted) {
+      _toast(context, 'CSV copy ho gaya - kahin paste kar lein');
+    }
+  }
+
   Future<void> _clearData() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -584,6 +605,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
             SizedBox(height: 20),
+            OutlinedButton.icon(
+              onPressed: () => _exportCsv(context),
+              icon: Icon(Icons.download),
+              label: Text('Export / Backup (CSV)'),
+            ),
+            SizedBox(height: 20),
             Text(
               tr('delete_options'),
               style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
@@ -676,7 +703,6 @@ class _HomeScreenState extends State<HomeScreen> {
       StudentsTab(store: store),
       shop ? BillsTab(store: store) : AttendanceTab(store: store),
       FeesTab(store: store),
-      if (!shop) BatchesTab(store: store),
     ];
     return PopScope(
       canPop: false,
@@ -715,6 +741,30 @@ class _HomeScreenState extends State<HomeScreen> {
           backgroundColor: Color(0xFF1F4E79),
           foregroundColor: Colors.white,
           actions: [
+            if (!shop)
+              IconButton(
+                icon: Icon(Icons.groups),
+                tooltip: store.groupWordPlural(),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => BatchesScreen(store: store),
+                    ),
+                  );
+                },
+              ),
+            if (!shop)
+              IconButton(
+                icon: Icon(Icons.assignment),
+                tooltip: 'Tests',
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => TestsScreen(store: store),
+                    ),
+                  );
+                },
+              ),
             IconButton(
               icon: Icon(Icons.swap_horiz),
               tooltip: tr('switch_centre'),
@@ -751,12 +801,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       onPressed: _newBill,
                       child: Icon(Icons.add),
                     )
-                  : (!shop && _index == 4
-                        ? FloatingActionButton(
-                            onPressed: _addBatch,
-                            child: Icon(Icons.add),
-                          )
-                        : null)),
+                  : null),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _index,
           onDestinationSelected: (i) => setState(() => _index = i),
@@ -778,11 +823,6 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icon(Icons.currency_rupee),
               label: tr('fees'),
             ),
-            if (!shop)
-              NavigationDestination(
-                icon: Icon(Icons.groups),
-                label: store.groupWordPlural(),
-              ),
           ],
         ),
       ),
@@ -1900,6 +1940,257 @@ class ReportsScreen extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class BatchesScreen extends StatelessWidget {
+  final AppStore store;
+  BatchesScreen({super.key, required this.store});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(store.groupWordPlural()),
+        backgroundColor: Color(0xFF1F4E79),
+        foregroundColor: Colors.white,
+      ),
+      body: BatchesTab(store: store),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => showDialog(
+          context: context,
+          builder: (_) => AddBatchDialog(store: store),
+        ),
+        child: Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+class TestsScreen extends StatelessWidget {
+  final AppStore store;
+  TestsScreen({super.key, required this.store});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Tests'),
+        backgroundColor: Color(0xFF1F4E79),
+        foregroundColor: Colors.white,
+      ),
+      body: AnimatedBuilder(
+        animation: store,
+        builder: (context, _) {
+          if (store.tests.isEmpty) {
+            return Center(child: Text('No tests yet. Tap + to add one.'));
+          }
+          return ListView.builder(
+            itemCount: store.tests.length,
+            itemBuilder: (context, i) {
+              final t = store.tests[i];
+              final bits = <String>[];
+              if (t.batch.isNotEmpty) bits.add(t.batch);
+              if (t.date.isNotEmpty) bits.add(t.date);
+              bits.add('Max ${t.maxMarks.toStringAsFixed(0)}');
+              return ListTile(
+                leading: CircleAvatar(child: Icon(Icons.assignment)),
+                title: Text(t.name),
+                subtitle: Text(bits.join('  •  ')),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => MarkEntryScreen(store: store, test: t),
+                  ),
+                ),
+                trailing: IconButton(
+                  icon: Icon(Icons.delete_outline),
+                  onPressed: () => store.removeTest(t.id),
+                ),
+              );
+            },
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => showDialog(
+          context: context,
+          builder: (_) => AddTestDialog(store: store),
+        ),
+        child: Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+class AddTestDialog extends StatefulWidget {
+  final AppStore store;
+  AddTestDialog({super.key, required this.store});
+
+  @override
+  State<AddTestDialog> createState() => _AddTestDialogState();
+}
+
+class _AddTestDialogState extends State<AddTestDialog> {
+  final name = TextEditingController();
+  final maxMarks = TextEditingController(text: '100');
+  String batchSel = '';
+
+  @override
+  void dispose() {
+    name.dispose();
+    maxMarks.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final store = widget.store;
+    final batches = <String>{''};
+    for (final b in store.batches) {
+      if (b.name.trim().isNotEmpty) batches.add(b.name.trim());
+    }
+    return AlertDialog(
+      title: Text('Add Test'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: name,
+              decoration: InputDecoration(labelText: 'Test name'),
+            ),
+            DropdownButtonFormField<String>(
+              value: batchSel,
+              decoration: InputDecoration(labelText: store.groupWord()),
+              items: batches
+                  .map(
+                    (b) => DropdownMenuItem(
+                      value: b,
+                      child: Text(b.isEmpty ? 'All' : b),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (v) => setState(() => batchSel = v ?? ''),
+            ),
+            TextField(
+              controller: maxMarks,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(labelText: 'Max marks'),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(tr('cancel')),
+        ),
+        FilledButton(
+          onPressed: () {
+            if (name.text.trim().isEmpty) return;
+            store.addTest(
+              Test(
+                id: DateTime.now().microsecondsSinceEpoch.toString(),
+                name: name.text.trim(),
+                batch: batchSel,
+                date: fmtDate(DateTime.now()),
+                maxMarks: double.tryParse(maxMarks.text.trim()) ?? 100,
+              ),
+            );
+            Navigator.pop(context);
+          },
+          child: Text('Add'),
+        ),
+      ],
+    );
+  }
+}
+
+class MarkEntryScreen extends StatefulWidget {
+  final AppStore store;
+  final Test test;
+  MarkEntryScreen({super.key, required this.store, required this.test});
+
+  @override
+  State<MarkEntryScreen> createState() => _MarkEntryScreenState();
+}
+
+class _MarkEntryScreenState extends State<MarkEntryScreen> {
+  final Map<String, TextEditingController> ctrls = {};
+  final List<Student> people = [];
+
+  @override
+  void initState() {
+    super.initState();
+    for (final s in widget.store.students) {
+      if (widget.test.batch.isNotEmpty && s.batch != widget.test.batch) {
+        continue;
+      }
+      people.add(s);
+      final m = widget.store.markFor(widget.test.id, s.id);
+      ctrls[s.id] = TextEditingController(
+        text: m > 0 ? m.toStringAsFixed(0) : '',
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in ctrls.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final store = widget.store;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.test.name),
+        backgroundColor: Color(0xFF1F4E79),
+        foregroundColor: Colors.white,
+      ),
+      body: people.isEmpty
+          ? Center(child: Text('No students in this batch'))
+          : ListView(
+              padding: EdgeInsets.all(12),
+              children: [
+                for (final s in people)
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(s.name)),
+                        SizedBox(
+                          width: 100,
+                          child: TextField(
+                            controller: ctrls[s.id],
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              isDense: true,
+                              hintText:
+                                  '/ ${widget.test.maxMarks.toStringAsFixed(0)}',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          for (final s in people) {
+            final v = double.tryParse(ctrls[s.id]!.text.trim()) ?? 0;
+            store.setMark(widget.test.id, s.id, v);
+          }
+          Navigator.pop(context);
+        },
+        icon: Icon(Icons.save),
+        label: Text('Save'),
       ),
     );
   }

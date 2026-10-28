@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'lang.dart';
 
-const String appVersion = 'v17';
+const String appVersion = 'v18';
 
 String stampDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
@@ -105,13 +105,44 @@ class Batch {
     'timing': timing,
     'fee': fee,
   };
-
   factory Batch.fromJson(Map<String, dynamic> j) => Batch(
     id: j['id'] as String,
     name: (j['name'] ?? '') as String,
     subject: (j['subject'] ?? '') as String,
     timing: (j['timing'] ?? '') as String,
     fee: ((j['fee'] ?? 0) as num).toDouble(),
+  );
+}
+
+class Test {
+  String id;
+  String name;
+  String batch;
+  String date;
+  double maxMarks;
+
+  Test({
+    required this.id,
+    required this.name,
+    this.batch = '',
+    this.date = '',
+    this.maxMarks = 100,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'batch': batch,
+    'date': date,
+    'maxMarks': maxMarks,
+  };
+
+  factory Test.fromJson(Map<String, dynamic> j) => Test(
+    id: j['id'] as String,
+    name: (j['name'] ?? '') as String,
+    batch: (j['batch'] ?? '') as String,
+    date: (j['date'] ?? '') as String,
+    maxMarks: ((j['maxMarks'] ?? 100) as num).toDouble(),
   );
 }
 
@@ -134,6 +165,8 @@ class AppStore extends ChangeNotifier {
   String? storageError;
   final List<Student> students = [];
   final List<Batch> batches = [];
+  final List<Test> tests = [];
+  final Map<String, double> marks = {};
   final Map<String, List<String>> attendance = {};
   final Map<String, double> payments = {};
   final Map<String, List<Map<String, String>>> notes = {};
@@ -160,6 +193,8 @@ class AppStore extends ChangeNotifier {
     'shopAddress': shopAddress,
     'students': students.map((e) => e.toJson()).toList(),
     'batches': batches.map((e) => e.toJson()).toList(),
+    'tests': tests.map((e) => e.toJson()).toList(),
+    'marks': marks,
     'attendance': attendance,
     'payments': payments,
     'notes': notes,
@@ -175,6 +210,8 @@ class AppStore extends ChangeNotifier {
   void applyMap(Map<String, dynamic> d) {
     students.clear();
     batches.clear();
+    tests.clear();
+    marks.clear();
     attendance.clear();
     payments.clear();
     notes.clear();
@@ -191,6 +228,12 @@ class AppStore extends ChangeNotifier {
     for (final e in ((d['batches'] ?? []) as List)) {
       batches.add(Batch.fromJson(Map<String, dynamic>.from(e as Map)));
     }
+    for (final e in ((d['tests'] ?? []) as List)) {
+      tests.add(Test.fromJson(Map<String, dynamic>.from(e as Map)));
+    }
+    ((d['marks'] ?? {}) as Map).forEach((k, v) {
+      marks[k as String] = (v as num).toDouble();
+    });
     ((d['attendance'] ?? {}) as Map).forEach((k, v) {
       attendance[k as String] = (v as List).map((x) => x as String).toList();
     });
@@ -431,6 +474,8 @@ class AppStore extends ChangeNotifier {
     shopAddress = '';
     students.clear();
     batches.clear();
+    tests.clear();
+    marks.clear();
     attendance.clear();
     payments.clear();
     notes.clear();
@@ -466,6 +511,8 @@ class AppStore extends ChangeNotifier {
   Future<void> clearCentreData() async {
     students.clear();
     batches.clear();
+    tests.clear();
+    marks.clear();
     attendance.clear();
     payments.clear();
     notes.clear();
@@ -477,6 +524,8 @@ class AppStore extends ChangeNotifier {
     accounts.clear();
     students.clear();
     batches.clear();
+    tests.clear();
+    marks.clear();
     attendance.clear();
     payments.clear();
     notes.clear();
@@ -507,6 +556,8 @@ class AppStore extends ChangeNotifier {
     shopAddress = '';
     students.clear();
     batches.clear();
+    tests.clear();
+    marks.clear();
     attendance.clear();
     payments.clear();
     notes.clear();
@@ -566,6 +617,25 @@ class AppStore extends ChangeNotifier {
 
   void addBatch(Batch b) {
     batches.add(b);
+    save();
+  }
+
+  void addTest(Test t) {
+    tests.add(t);
+    save();
+  }
+
+  void removeTest(String id) {
+    tests.removeWhere((t) => t.id == id);
+    marks.removeWhere((k, v) => k.startsWith('$id|'));
+    save();
+  }
+
+  double markFor(String testId, String studentId) =>
+      marks['$testId|$studentId'] ?? 0;
+
+  void setMark(String testId, String studentId, double value) {
+    marks['$testId|$studentId'] = value;
     save();
   }
 
