@@ -672,6 +672,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final store = widget.store;
     final shop = store.isShop;
     final pages = <Widget>[
+      DashboardTab(store: store),
       StudentsTab(store: store),
       shop ? BillsTab(store: store) : AttendanceTab(store: store),
       FeesTab(store: store),
@@ -740,17 +741,17 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         body: pages[_index],
-        floatingActionButton: _index == 0
+        floatingActionButton: _index == 1
             ? FloatingActionButton(
                 onPressed: _addStudent,
                 child: Icon(Icons.add),
               )
-            : (shop && _index == 1
+            : (shop && _index == 2
                   ? FloatingActionButton(
                       onPressed: _newBill,
                       child: Icon(Icons.add),
                     )
-                  : (!shop && _index == 3
+                  : (!shop && _index == 4
                         ? FloatingActionButton(
                             onPressed: _addBatch,
                             child: Icon(Icons.add),
@@ -760,6 +761,11 @@ class _HomeScreenState extends State<HomeScreen> {
           selectedIndex: _index,
           onDestinationSelected: (i) => setState(() => _index = i),
           destinations: [
+            NavigationDestination(
+              icon: Icon(Icons.dashboard_outlined),
+              selectedIcon: Icon(Icons.dashboard),
+              label: 'Home',
+            ),
             NavigationDestination(
               icon: Icon(Icons.people),
               label: store.personWordPlural(),
@@ -1218,6 +1224,7 @@ class StudentsTab extends StatefulWidget {
 
 class _StudentsTabState extends State<StudentsTab> {
   String batchFilter = '';
+  String query = '';
 
   @override
   Widget build(BuildContext context) {
@@ -1229,11 +1236,33 @@ class _StudentsTabState extends State<StudentsTab> {
         for (final s in store.students) {
           if (s.batch.trim().isNotEmpty) batches.add(s.batch.trim());
         }
-        final list = batchFilter.isEmpty
+        final byBatch = batchFilter.isEmpty
             ? store.students
             : store.students.where((s) => s.batch == batchFilter).toList();
+        final q = query.trim().toLowerCase();
+        final list = q.isEmpty
+            ? byBatch
+            : byBatch
+                  .where(
+                    (s) =>
+                        s.name.toLowerCase().contains(q) ||
+                        s.phone.contains(q) ||
+                        s.className.toLowerCase().contains(q),
+                  )
+                  .toList();
         return Column(
           children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: 'Search name / phone / class',
+                  isDense: true,
+                  prefixIcon: Icon(Icons.search),
+                ),
+                onChanged: (v) => setState(() => query = v),
+              ),
+            ),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               child: Row(
@@ -1679,6 +1708,199 @@ class _AddBatchDialogState extends State<AddBatchDialog> {
           child: Text('Add'),
         ),
       ],
+    );
+  }
+}
+
+class DashboardTab extends StatelessWidget {
+  final AppStore store;
+  DashboardTab({super.key, required this.store});
+
+  Widget _stat(String value, String label, IconData icon, Color color) {
+    return Card(
+      child: Padding(
+        padding: EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color),
+            SizedBox(height: 6),
+            Text(
+              value,
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            Text(label, style: TextStyle(fontSize: 12, color: Colors.grey)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: store,
+      builder: (context, _) {
+        final now = DateTime.now();
+        final todayKey = isoDate(now);
+        final present = store.students
+            .where((s) => store.isPresent(todayKey, s.id))
+            .length;
+        double expected = 0;
+        double collected = 0;
+        for (final s in store.students) {
+          final pk = periodKeyFor(now, s.feePeriod);
+          expected += s.fee;
+          collected += store.paidFor(s.id, pk);
+        }
+        final due = expected - collected;
+        return ListView(
+          padding: EdgeInsets.all(12),
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _stat(
+                    '${store.students.length}',
+                    store.personWordPlural(),
+                    Icons.people,
+                    Colors.blue,
+                  ),
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: _stat(
+                    '$present/${store.students.length}',
+                    'Present today',
+                    Icons.check_circle,
+                    Colors.green,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _stat(
+                    'Rs ${collected.toStringAsFixed(0)}',
+                    'Collected',
+                    Icons.currency_rupee,
+                    Colors.teal,
+                  ),
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: _stat(
+                    'Rs ${due.toStringAsFixed(0)}',
+                    'Due',
+                    Icons.warning_amber,
+                    Colors.red,
+                  ),
+                ),
+              ],
+            ),
+            if (!store.isShop) ...[
+              SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _stat(
+                      '${store.batches.length}',
+                      store.groupWordPlural(),
+                      Icons.groups,
+                      Colors.indigo,
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(child: SizedBox()),
+                ],
+              ),
+            ],
+            SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => ReportsScreen(store: store)),
+              ),
+              icon: Icon(Icons.bar_chart),
+              label: Text('Reports dekhein'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class ReportsScreen extends StatelessWidget {
+  final AppStore store;
+  ReportsScreen({super.key, required this.store});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Reports'),
+        backgroundColor: Color(0xFF1F4E79),
+        foregroundColor: Colors.white,
+      ),
+      body: AnimatedBuilder(
+        animation: store,
+        builder: (context, _) {
+          final now = DateTime.now();
+          final dates = store.attendance.keys.toList();
+          final totalDays = dates.length;
+          double expected = 0;
+          double collected = 0;
+          for (final s in store.students) {
+            final pk = periodKeyFor(now, s.feePeriod);
+            expected += s.fee;
+            collected += store.paidFor(s.id, pk);
+          }
+          return ListView(
+            padding: EdgeInsets.all(12),
+            children: [
+              Text(
+                'Fees',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Expected: Rs ${expected.toStringAsFixed(0)}    '
+                'Collected: Rs ${collected.toStringAsFixed(0)}    '
+                'Due: Rs ${(expected - collected).toStringAsFixed(0)}',
+              ),
+              Divider(height: 24),
+              Text(
+                'Attendance (days recorded: $totalDays)',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              SizedBox(height: 4),
+              if (store.students.isEmpty)
+                Text('No data yet')
+              else
+                for (final s in store.students)
+                  Builder(
+                    builder: (context) {
+                      final presentDays = dates
+                          .where((d) => store.isPresent(d, s.id))
+                          .length;
+                      final pct = totalDays == 0
+                          ? 0
+                          : (presentDays * 100 / totalDays).round();
+                      return ListTile(
+                        dense: true,
+                        title: Text(s.name),
+                        subtitle: Text(s.batch),
+                        trailing: Text('$presentDays/$totalDays ($pct%)'),
+                      );
+                    },
+                  ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
