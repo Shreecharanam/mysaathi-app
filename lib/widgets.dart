@@ -115,7 +115,7 @@ class StatCard extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12, color: AppColors.muted),
+            style: TextStyle(fontSize: 12, color: AppTint.subtle(context)),
           ),
         ],
       ),
@@ -138,12 +138,12 @@ class EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 44, color: AppColors.muted),
+            Icon(icon, size: 44, color: AppTint.faint(context)),
             const SizedBox(height: AppSpace.md),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.muted, fontSize: 14),
+              style: TextStyle(color: AppTint.muted(context), fontSize: 14),
             ),
           ],
         ),
@@ -173,7 +173,7 @@ class LoadingView extends StatelessWidget {
             const SizedBox(height: AppSpace.md),
             Text(
               label,
-              style: const TextStyle(color: AppColors.muted, fontSize: 13),
+              style: TextStyle(color: AppTint.muted(context), fontSize: 13),
             ),
           ],
         ],

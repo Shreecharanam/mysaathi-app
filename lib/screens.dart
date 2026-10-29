@@ -224,7 +224,7 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SizedBox(height: 16),
-              Icon(Icons.school, size: 64, color: AppColors.navy),
+              Icon(Icons.school, size: 64, color: AppTint.brand(context)),
               SizedBox(height: 10),
               Text(
                 'MySaathi',
@@ -232,19 +232,19 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.navy,
+                  color: AppTint.brand(context),
                 ),
               ),
               Text(
                 tr('tagline'),
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.black54),
+                style: TextStyle(color: AppTint.muted(context)),
               ),
               SizedBox(height: 4),
               Text(
                 '${tr('version')} $appVersion',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.black45),
+                style: TextStyle(fontSize: 12, color: AppTint.faint(context)),
               ),
               AnimatedBuilder(
                 animation: widget.store,
@@ -260,7 +260,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Text(
                         '${tr('problem')}: $err',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 11, color: Colors.red),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppTint.danger(context),
+                        ),
                       ),
                     );
                   }
@@ -279,7 +282,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text(
                       msg,
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 11, color: Colors.black45),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppTint.faint(context),
+                      ),
                     ),
                   );
                 },
@@ -329,7 +335,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Text(
                 tr('or_email'),
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.black45),
+                style: TextStyle(fontSize: 12, color: AppTint.faint(context)),
               ),
               SizedBox(height: 10),
               TextField(
@@ -384,7 +390,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Text(
                 tr('first_time_help'),
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.black45),
+                style: TextStyle(fontSize: 12, color: AppTint.faint(context)),
               ),
             ],
           ),
@@ -608,7 +614,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             SizedBox(height: 20),
             Text(
               tr('delete_options'),
-              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppTint.danger(context),
+              ),
             ),
             SizedBox(height: 8),
             OutlinedButton(
@@ -618,7 +627,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             SizedBox(height: 8),
             OutlinedButton(
               onPressed: _deleteAccount,
-              style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTint.danger(context),
+              ),
               child: Text(tr('delete_account')),
             ),
           ],
@@ -1541,7 +1552,7 @@ class _FeesTabState extends State<FeesTab> {
                       'Due: Rs ${totalDue.toStringAsFixed(0)}  ($dueCount)',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: Colors.red.shade700,
+                        color: AppTint.danger(context),
                       ),
                     ),
                   ),
@@ -1763,7 +1774,10 @@ class DashboardTab extends StatelessWidget {
               value,
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-            Text(label, style: TextStyle(fontSize: 12, color: Colors.grey)),
+            Text(
+              label,
+              style: TextStyle(fontSize: 12, color: AppTint.subtle(context)),
+            ),
           ],
         ),
       ),
@@ -1829,7 +1843,7 @@ class DashboardTab extends StatelessWidget {
                     'Rs ${due.toStringAsFixed(0)}',
                     tr('u_due'),
                     Icons.warning_amber,
-                    Colors.red,
+                    AppTint.danger(context),
                   ),
                 ),
               ],

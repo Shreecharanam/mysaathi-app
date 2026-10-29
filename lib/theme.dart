@@ -162,3 +162,32 @@ class AppTheme {
   static ThemeData get light => _build(Brightness.light);
   static ThemeData get dark => _build(Brightness.dark);
 }
+
+/// Theme-aware foreground tints, so text and the logo stay readable in
+/// both light and dark mode.
+class AppTint {
+  AppTint._();
+
+  static bool _dark(BuildContext c) =>
+      Theme.of(c).brightness == Brightness.dark;
+
+  /// Brand foreground (logo icon, app title).
+  static Color brand(BuildContext c) =>
+      _dark(c) ? AppColors.gold : AppColors.navy;
+
+  /// Normal secondary text.
+  static Color muted(BuildContext c) =>
+      _dark(c) ? const Color(0xFFC2C8D2) : AppColors.muted;
+
+  /// Faint helper / hint text.
+  static Color faint(BuildContext c) =>
+      _dark(c) ? const Color(0xFF9AA3B2) : const Color(0xFF6B7280);
+
+  /// Subtle labels (stat captions).
+  static Color subtle(BuildContext c) =>
+      _dark(c) ? const Color(0xFF9AA3B2) : const Color(0xFF6B7280);
+
+  /// Error / danger text.
+  static Color danger(BuildContext c) =>
+      _dark(c) ? const Color(0xFFEF9A9A) : AppColors.danger;
+}
