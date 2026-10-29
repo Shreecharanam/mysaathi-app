@@ -705,7 +705,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final store = widget.store;
     final shop = store.isShop;
     final pages = <Widget>[
-      DashboardTab(store: store),
+      DashboardTab(
+        store: store,
+        onStudents: () => setState(() => _index = 1),
+        onAttendance: shop ? null : () => setState(() => _index = 2),
+        onFees: () => setState(() => _index = 3),
+        onBatches: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => BatchesScreen(store: store))),
+      ),
       StudentsTab(store: store),
       shop ? BillsTab(store: store) : AttendanceTab(store: store),
       FeesTab(store: store),
@@ -1758,16 +1766,29 @@ class _AddBatchDialogState extends State<AddBatchDialog> {
 
 class DashboardTab extends StatelessWidget {
   final AppStore store;
-  DashboardTab({super.key, required this.store});
+  final VoidCallback? onStudents;
+  final VoidCallback? onAttendance;
+  final VoidCallback? onFees;
+  final VoidCallback? onBatches;
+
+  DashboardTab({
+    super.key,
+    required this.store,
+    this.onStudents,
+    this.onAttendance,
+    this.onFees,
+    this.onBatches,
+  });
 
   Widget _stat(
     BuildContext context,
     String value,
     String label,
     IconData icon,
-    Color color,
-  ) {
-    return Card(
+    Color color, {
+    VoidCallback? onTap,
+  }) {
+    final body = Card(
       child: Padding(
         padding: EdgeInsets.all(12),
         child: Column(
@@ -1787,6 +1808,12 @@ class DashboardTab extends StatelessWidget {
           ],
         ),
       ),
+    );
+    if (onTap == null) return body;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: body,
     );
   }
 
@@ -1820,6 +1847,7 @@ class DashboardTab extends StatelessWidget {
                     store.personWordPlural(),
                     Icons.people,
                     Colors.blue,
+                    onTap: onStudents,
                   ),
                 ),
                 SizedBox(width: 10),
@@ -1830,6 +1858,7 @@ class DashboardTab extends StatelessWidget {
                     tr('u_present_today'),
                     Icons.check_circle,
                     Colors.green,
+                    onTap: onAttendance,
                   ),
                 ),
               ],
@@ -1844,6 +1873,7 @@ class DashboardTab extends StatelessWidget {
                     tr('u_collected'),
                     Icons.currency_rupee,
                     Colors.teal,
+                    onTap: onFees,
                   ),
                 ),
                 SizedBox(width: 10),
@@ -1854,6 +1884,7 @@ class DashboardTab extends StatelessWidget {
                     tr('u_due'),
                     Icons.warning_amber,
                     AppTint.danger(context),
+                    onTap: onFees,
                   ),
                 ),
               ],
@@ -1869,6 +1900,7 @@ class DashboardTab extends StatelessWidget {
                       store.groupWordPlural(),
                       Icons.groups,
                       Colors.indigo,
+                      onTap: onBatches,
                     ),
                   ),
                   SizedBox(width: 10),
@@ -2167,13 +2199,15 @@ class _MarkEntryScreenState extends State<MarkEntryScreen> {
                       children: [
                         Expanded(child: Text(s.name)),
                         SizedBox(
-                          width: 100,
+                          width: 124,
                           child: TextField(
                             controller: ctrls[s.id],
                             keyboardType: TextInputType.number,
+                            textAlign: TextAlign.end,
                             decoration: InputDecoration(
                               isDense: true,
-                              hintText:
+                              hintText: '0',
+                              suffixText:
                                   '/ ${widget.test.maxMarks.toStringAsFixed(0)}',
                             ),
                           ),
