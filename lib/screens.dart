@@ -1760,7 +1760,13 @@ class DashboardTab extends StatelessWidget {
   final AppStore store;
   DashboardTab({super.key, required this.store});
 
-  Widget _stat(String value, String label, IconData icon, Color color) {
+  Widget _stat(
+    BuildContext context,
+    String value,
+    String label,
+    IconData icon,
+    Color color,
+  ) {
     return Card(
       child: Padding(
         padding: EdgeInsets.all(12),
@@ -1809,6 +1815,7 @@ class DashboardTab extends StatelessWidget {
               children: [
                 Expanded(
                   child: _stat(
+                    context,
                     '${store.students.length}',
                     store.personWordPlural(),
                     Icons.people,
@@ -1818,6 +1825,7 @@ class DashboardTab extends StatelessWidget {
                 SizedBox(width: 10),
                 Expanded(
                   child: _stat(
+                    context,
                     '$present/${store.students.length}',
                     tr('u_present_today'),
                     Icons.check_circle,
@@ -1831,6 +1839,7 @@ class DashboardTab extends StatelessWidget {
               children: [
                 Expanded(
                   child: _stat(
+                    context,
                     'Rs ${collected.toStringAsFixed(0)}',
                     tr('u_collected'),
                     Icons.currency_rupee,
@@ -1840,6 +1849,7 @@ class DashboardTab extends StatelessWidget {
                 SizedBox(width: 10),
                 Expanded(
                   child: _stat(
+                    context,
                     'Rs ${due.toStringAsFixed(0)}',
                     tr('u_due'),
                     Icons.warning_amber,
@@ -1854,6 +1864,7 @@ class DashboardTab extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _stat(
+                      context,
                       '${store.batches.length}',
                       store.groupWordPlural(),
                       Icons.groups,
