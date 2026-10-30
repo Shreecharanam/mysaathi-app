@@ -86,6 +86,91 @@ Future<void> sendWhatsApp(
   }
 }
 
+/// Plain-text report for one student, shared with the parent.
+String studentReport(AppStore store, Student s) {
+  final now = DateTime.now();
+  final pk = periodKeyFor(now, s.feePeriod);
+  final paid = store.paidFor(s.id, pk);
+  final due = s.fee - paid;
+  final dates = store.attendance.keys.toList();
+  final presentDays = dates.where((d) => store.isPresent(d, s.id)).length;
+  final total = dates.length;
+  final pct = total == 0 ? 0 : (presentDays * 100 / total).round();
+  final b = StringBuffer();
+  b.writeln(store.centreName);
+  b.writeln('Student: ${s.name}');
+  if (s.className.isNotEmpty) b.writeln('Class: ${s.className}');
+  if (s.batch.isNotEmpty) b.writeln('${store.groupWord()}: ${s.batch}');
+  b.writeln('');
+  b.writeln('Attendance: $presentDays/$total days ($pct%)');
+  b.writeln('');
+  b.writeln(
+    'Fees (${periodLabel(s.feePeriod)}): Rs ${s.fee.toStringAsFixed(0)}',
+  );
+  b.writeln('Paid: Rs ${paid.toStringAsFixed(0)}');
+  b.writeln('Pending: Rs ${due > 0 ? due.toStringAsFixed(0) : '0'}');
+  final tests = store.tests
+      .where((t) => t.batch.isEmpty || t.batch == s.batch)
+      .toList();
+  if (tests.isNotEmpty) {
+    b.writeln('');
+    b.writeln('Test marks:');
+    for (final t in tests) {
+      final m = store.markFor(t.id, s.id);
+      b.writeln(
+        '  ${t.name}: ${m.toStringAsFixed(0)}/${t.maxMarks.toStringAsFixed(0)}',
+      );
+    }
+  }
+  return b.toString();
+}
+
+/// Dialog to enter an activation code after payment.
+Future<void> showActivateDialog(BuildContext context, AppStore store) async {
+  final c = TextEditingController();
+  await showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Activate'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            store.licenceLabel,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Enter the activation code you received after payment.',
+            style: TextStyle(fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: c,
+            textCapitalization: TextCapitalization.characters,
+            decoration: const InputDecoration(hintText: 'MS-20271012-1234'),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: Text(tr('cancel')),
+        ),
+        FilledButton(
+          onPressed: () {
+            final ok = store.applyCode(c.text);
+            Navigator.pop(ctx);
+            _toast(context, ok ? 'Activated' : 'Invalid code');
+          },
+          child: const Text('Activate'),
+        ),
+      ],
+    ),
+  );
+}
+
 class _ItemRow {
   final name = TextEditingController();
   final qty = TextEditingController(text: '1');
@@ -606,6 +691,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
             SizedBox(height: 20),
+            Text('Licence', style: TextStyle(fontWeight: FontWeight.bold)),
+            SizedBox(height: 4),
+            Text(widget.store.licenceLabel),
+            SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => showActivateDialog(context, widget.store),
+              icon: Icon(Icons.vpn_key),
+              label: Text('Activate / enter code'),
+            ),
+            SizedBox(height: 20),
             OutlinedButton.icon(
               onPressed: () => _exportCsv(context),
               icon: Icon(Icons.download),
@@ -802,18 +897,62 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-        body: pages[_index],
-        floatingActionButton: _index == 1
+        body: Column(
+          children: [
+            if (!store.licenceActive)
+              Container(
+                width: double.infinity,
+                color: const Color(0xFF7A1F1F),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Trial over. Activate to add new data.',
+                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => showActivateDialog(context, store),
+                      child: const Text(
+                        'Activate',
+                        style: TextStyle(
+                          color: AppColors.goldSoft,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            Expanded(child: pages[_index]),
+          ],
+        ),
+        floatingActionButton: !store.licenceActive
             ? FloatingActionButton(
-                onPressed: _addStudent,
-                child: Icon(Icons.add),
+                onPressed: () => showActivateDialog(context, store),
+                child: const Icon(Icons.lock_outline),
               )
-            : (shop && _index == 2
+            : (_index == 1
                   ? FloatingActionButton(
-                      onPressed: _newBill,
-                      child: Icon(Icons.add),
+                      onPressed: _addStudent,
+                      child: const Icon(Icons.add),
                     )
-                  : null),
+                  : (shop && _index == 2
+                        ? FloatingActionButton(
+                            onPressed: _newBill,
+                            child: const Icon(Icons.add),
+                          )
+                        : null)),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _index,
           onDestinationSelected: (i) => setState(() => _index = i),
@@ -1278,6 +1417,41 @@ class _StudentsTabState extends State<StudentsTab> {
   String batchFilter = '';
   String query = '';
 
+  Future<void> _shareReport(
+    BuildContext context,
+    AppStore store,
+    Student s,
+  ) async {
+    final text = studentReport(store, s);
+    final phone = s.parentPhone.isNotEmpty ? s.parentPhone : s.phone;
+    await showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.chat),
+              title: const Text('Send on WhatsApp'),
+              onTap: () {
+                Navigator.pop(ctx);
+                sendWhatsApp(context, phone, text);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy),
+              title: const Text('Copy report'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                await Clipboard.setData(ClipboardData(text: text));
+                _toast(context, tr('u_csv_copied'));
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = widget.store;
@@ -1377,6 +1551,12 @@ class _StudentsTabState extends State<StudentsTab> {
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              IconButton(
+                                icon: Icon(Icons.share_outlined),
+                                tooltip: 'Share report',
+                                onPressed: () =>
+                                    _shareReport(context, store, s),
+                              ),
                               IconButton(
                                 icon: Icon(Icons.edit_outlined),
                                 tooltip: tr('u_edit'),
@@ -2247,6 +2427,13 @@ class CentreChooserScreen extends StatelessWidget {
   }
 
   Future<void> _add(BuildContext context) async {
+    if (store.accounts.isNotEmpty) {
+      _toast(
+        context,
+        'One account can have only one centre. Use another Gmail ID for a second centre.',
+      );
+      return;
+    }
     final name = TextEditingController();
     String type = 'tuition';
     final ok = await showDialog<bool>(

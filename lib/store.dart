@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'lang.dart';
 
-const String appVersion = 'v22';
+const String appVersion = 'v23';
 
 String stampDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
@@ -151,6 +151,8 @@ class AppStore extends ChangeNotifier {
   String sessionUid = '';
   String accountKey = '';
   String lastCid = '';
+  String trialStart = '';
+  String paidTill = '';
   bool firebaseReady = false;
   String? firebaseError;
   String? cloudError;
@@ -183,6 +185,73 @@ class AppStore extends ChangeNotifier {
   bool get loggedIn => uid.isNotEmpty;
   bool get centreOpen => accountKey.isNotEmpty;
   bool get isShop => centreType == 'shop';
+
+  // ---------- licence / trial ----------
+  static const int trialDays = 30;
+
+  String get todayIso {
+    final n = DateTime.now();
+    return '${n.year}-${n.month.toString().padLeft(2, '0')}-${n.day.toString().padLeft(2, '0')}';
+  }
+
+  DateTime? _parseDay(String s) => DateTime.tryParse(s);
+
+  bool get licenceActive {
+    final now = DateTime.now();
+    final paid = _parseDay(paidTill);
+    if (paid != null && now.isBefore(paid.add(const Duration(days: 1)))) {
+      return true;
+    }
+    final t = _parseDay(trialStart);
+    if (t == null) return true; // no trial info yet -> fresh trial
+    return now.isBefore(t.add(const Duration(days: trialDays)));
+  }
+
+  int get trialDaysLeft {
+    final t = _parseDay(trialStart);
+    if (t == null) return trialDays;
+    final left = t
+        .add(const Duration(days: trialDays))
+        .difference(DateTime.now())
+        .inDays;
+    return left < 0 ? 0 : left;
+  }
+
+  String get licenceLabel {
+    final now = DateTime.now();
+    final paid = _parseDay(paidTill);
+    if (paid != null && now.isBefore(paid.add(const Duration(days: 1)))) {
+      return 'Active till ${stampDate(paid)}';
+    }
+    if (licenceActive) return 'Trial - $trialDaysLeft day(s) left';
+    return 'Trial over - activation needed';
+  }
+
+  /// Offline activation code: MS-YYYYMMDD-XXXX (XXXX = checksum of date).
+  static String codeFor(DateTime d) {
+    final ds =
+        '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}';
+    var h = 0;
+    for (final c in (ds + 'MYS8').codeUnits) {
+      h = (h * 31 + c) % 10000;
+    }
+    return 'MS-$ds-${h.toString().padLeft(4, '0')}';
+  }
+
+  bool applyCode(String code) {
+    final p = code.trim().toUpperCase().split('-');
+    if (p.length != 3 || p[0] != 'MS' || p[1].length != 8) return false;
+    final ds = p[1];
+    final dt = DateTime.tryParse(
+      '${ds.substring(0, 4)}-${ds.substring(4, 6)}-${ds.substring(6, 8)}',
+    );
+    if (dt == null) return false;
+    if (p[2] != codeFor(dt).split('-').last) return false;
+    paidTill =
+        '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+    save();
+    return true;
+  }
 
   Map<String, dynamic> centreMap() => {
     'centreName': centreName,
@@ -321,7 +390,13 @@ class AppStore extends ChangeNotifier {
       final f = await dataFile();
       if (f != null) {
         f.writeAsStringSync(
-          jsonEncode({'uid': uid, 'centres': accounts, 'last': lastCid}),
+          jsonEncode({
+            'uid': uid,
+            'centres': accounts,
+            'last': lastCid,
+            'trialStart': trialStart,
+            'paidTill': paidTill,
+          }),
         );
       }
     } catch (e) {
@@ -347,6 +422,8 @@ class AppStore extends ChangeNotifier {
               _fileUid = fileUid;
               uid = want.isNotEmpty ? want : fileUid;
               lastCid = (m['last'] ?? '').toString();
+              trialStart = (m['trialStart'] ?? '').toString();
+              paidTill = (m['paidTill'] ?? '').toString();
               if (lastCid.isNotEmpty && accounts.containsKey(lastCid)) {
                 accountKey = lastCid;
                 pullActive();
@@ -376,6 +453,7 @@ class AppStore extends ChangeNotifier {
       await FirebaseFirestore.instance.collection('centres').doc(uid).set({
         'centres': accounts,
         'last': lastCid,
+        'licence': {'trialStart': trialStart, 'paidTill': paidTill},
       });
       cloudStatus = 'saved';
       cloudError = null;
@@ -402,6 +480,11 @@ class AppStore extends ChangeNotifier {
           (k, v) => accounts[k.toString()] = v,
         );
         lastCid = (d['last'] ?? '').toString();
+        final lic = d['licence'];
+        if (lic is Map) {
+          trialStart = (lic['trialStart'] ?? '').toString();
+          paidTill = (lic['paidTill'] ?? '').toString();
+        }
         _fileUid = uid;
         cloudStatus = 'restored';
       } else {
@@ -418,6 +501,7 @@ class AppStore extends ChangeNotifier {
   Future<void> loginWithUid(String u, String name, String type) async {
     uid = u;
     sessionUid = u;
+    if (trialStart.isEmpty) trialStart = todayIso;
     if (_fileUid != u) {
       accounts.clear();
       accountKey = '';
@@ -442,6 +526,7 @@ class AppStore extends ChangeNotifier {
     final key = name.trim().toLowerCase();
     uid = key;
     sessionUid = key;
+    if (trialStart.isEmpty) trialStart = todayIso;
     if (_fileUid != key) {
       accounts.clear();
       accountKey = '';
@@ -462,6 +547,10 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<void> createCentre(String name, String type) async {
+    // One account = one centre (each extra centre needs its own login).
+    if (accounts.isNotEmpty) {
+      return;
+    }
     capture();
     final cid = DateTime.now().microsecondsSinceEpoch.toString();
     accountKey = cid;
