@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'lang.dart';
 
-const String appVersion = 'v23';
+const String appVersion = 'v24';
 
 String stampDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
@@ -45,6 +46,7 @@ class Student {
   double fee;
   String joinDate;
   String feePeriod;
+  String accessCode;
 
   Student({
     required this.id,
@@ -56,6 +58,7 @@ class Student {
     this.fee = 0,
     this.joinDate = '',
     this.feePeriod = 'monthly',
+    this.accessCode = '',
   });
 
   Map<String, dynamic> toJson() => {
@@ -68,6 +71,7 @@ class Student {
     'fee': fee,
     'joinDate': joinDate,
     'feePeriod': feePeriod,
+    'accessCode': accessCode,
   };
 
   factory Student.fromJson(Map<String, dynamic> j) => Student(
@@ -80,6 +84,7 @@ class Student {
     fee: ((j['fee'] ?? 0) as num).toDouble(),
     joinDate: (j['joinDate'] ?? '') as String,
     feePeriod: (j['feePeriod'] ?? 'monthly') as String,
+    accessCode: (j['accessCode'] ?? '') as String,
   );
 }
 
@@ -251,6 +256,92 @@ class AppStore extends ChangeNotifier {
         '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
     save();
     return true;
+  }
+
+  // ---------- parent access codes ----------
+  static const _codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  DateTime? _lastSummaryPush;
+
+  String newAccessCode() {
+    final r = Random.secure();
+    return List.generate(
+      8,
+      (_) => _codeChars[r.nextInt(_codeChars.length)],
+    ).join();
+  }
+
+  Future<String> ensureAccessCode(Student s) async {
+    if (s.accessCode.isEmpty) {
+      s.accessCode = newAccessCode();
+      await save();
+    }
+    await pushStudentSummary(s);
+    return s.accessCode;
+  }
+
+  void clearAccessCode(Student s) {
+    s.accessCode = '';
+    save();
+  }
+
+  /// Publishes a read-only summary for the parent (public_students/{code}).
+  Future<void> pushStudentSummary(Student s) async {
+    if (!firebaseReady || uid.isEmpty || s.accessCode.isEmpty) return;
+    final dates = attendance.keys.toList();
+    final present = dates.where((d) => isPresent(d, s.id)).length;
+    final total = dates.length;
+    final pct = total == 0 ? 0 : (present * 100 / total).round();
+    final pk = periodKeyFor(DateTime.now(), s.feePeriod);
+    final paid = paidFor(s.id, pk);
+    final due = s.fee - paid;
+    final testRows = <Map<String, dynamic>>[];
+    for (final t in tests) {
+      if (t.batch.isNotEmpty && t.batch != s.batch) continue;
+      testRows.add({
+        'name': t.name,
+        'marks': markFor(t.id, s.id),
+        'max': t.maxMarks,
+      });
+    }
+    try {
+      await FirebaseFirestore.instance
+          .collection('public_students')
+          .doc(s.accessCode)
+          .set({
+            'ownerUid': uid,
+            'centre': centreName,
+            'centrePhone': centrePhone,
+            'name': s.name,
+            'className': s.className,
+            'batch': s.batch,
+            'groupWord': groupWord(),
+            'present': present,
+            'total': total,
+            'pct': pct,
+            'feePeriod': periodLabel(s.feePeriod),
+            'fee': s.fee,
+            'paid': paid,
+            'due': due,
+            'tests': testRows,
+            'updated': DateTime.now().toIso8601String(),
+          });
+    } catch (e) {
+      cloudError = e.toString();
+    }
+  }
+
+  Future<void> refreshPublicSummaries() async {
+    if (!firebaseReady || uid.isEmpty) return;
+    if (!students.any((s) => s.accessCode.isNotEmpty)) return;
+    final now = DateTime.now();
+    final last = _lastSummaryPush;
+    if (last != null && now.difference(last).inSeconds < 60) return;
+    _lastSummaryPush = now;
+    for (final s in students) {
+      if (s.accessCode.isNotEmpty) {
+        await pushStudentSummary(s);
+      }
+    }
   }
 
   Map<String, dynamic> centreMap() => {
@@ -443,6 +534,7 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
     await _writeLocal();
     pushCloud();
+    refreshPublicSummaries();
   }
 
   Future<void> pushCloud() async {

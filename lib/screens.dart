@@ -477,6 +477,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: AppTint.faint(context)),
               ),
+              SizedBox(height: 4),
+              TextButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ParentViewScreen()),
+                ),
+                icon: const Icon(Icons.family_restroom, size: 18),
+                label: const Text('Parent? View your child record'),
+              ),
             ],
           ),
         ),
@@ -689,6 +697,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   widget.store.setLang(v);
                 }
               },
+            ),
+            SizedBox(height: 20),
+            OutlinedButton.icon(
+              onPressed: () => openUrl('https://seekhojeeto.github.io/'),
+              icon: Icon(Icons.school_outlined),
+              label: Text('Learn - Seekho Jeeto (free)'),
             ),
             SizedBox(height: 20),
             Text('Licence', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -1446,8 +1460,86 @@ class _StudentsTabState extends State<StudentsTab> {
                 _toast(context, tr('u_csv_copied'));
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.key),
+              title: const Text('Parent access code'),
+              subtitle: const Text(
+                'Parent can see this record live (read only)',
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                _accessCode(context, store, s);
+              },
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _accessCode(
+    BuildContext context,
+    AppStore store,
+    Student s,
+  ) async {
+    final code = await store.ensureAccessCode(s);
+    if (!context.mounted) return;
+    final phone = s.parentPhone.isNotEmpty ? s.parentPhone : s.phone;
+    final msg =
+        'Namaste,\n'
+        '${store.centreName}\n\n'
+        'You can now see the record of ${s.name} in the MySaathi app.\n'
+        'Access code: $code\n\n'
+        'Open the app, tap Parent view, and enter this code.';
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Parent access code'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Share this code with the parent:'),
+            const SizedBox(height: 10),
+            SelectableText(
+              code,
+              style: const TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 3,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'The parent can see attendance, fees and marks - read only.',
+              style: TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              store.clearAccessCode(s);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Turn off'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await Clipboard.setData(ClipboardData(text: code));
+              _toast(context, tr('u_csv_copied'));
+            },
+            child: const Text('Copy'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              sendWhatsApp(context, phone, msg);
+            },
+            child: const Text('WhatsApp'),
+          ),
+        ],
       ),
     );
   }
@@ -2407,6 +2499,159 @@ class _MarkEntryScreenState extends State<MarkEntryScreen> {
         },
         icon: Icon(Icons.save),
         label: Text(tr('u_save')),
+      ),
+    );
+  }
+}
+
+class ParentViewScreen extends StatefulWidget {
+  const ParentViewScreen({super.key});
+
+  @override
+  State<ParentViewScreen> createState() => _ParentViewScreenState();
+}
+
+class _ParentViewScreenState extends State<ParentViewScreen> {
+  final code = TextEditingController();
+  bool loading = false;
+  String? error;
+  Map<String, dynamic>? data;
+
+  @override
+  void dispose() {
+    code.dispose();
+    super.dispose();
+  }
+
+  String _n(Object? v) {
+    if (v is num) return v.toStringAsFixed(0);
+    final p = num.tryParse('$v');
+    return p == null ? '$v' : p.toStringAsFixed(0);
+  }
+
+  Future<void> _lookup() async {
+    final c = code.text.trim().toUpperCase();
+    if (c.isEmpty) return;
+    setState(() {
+      loading = true;
+      error = null;
+      data = null;
+    });
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('public_students')
+          .doc(c)
+          .get();
+      if (doc.exists && doc.data() != null) {
+        setState(() => data = doc.data());
+      } else {
+        setState(() => error = 'Code not found. Please check and try again.');
+      }
+    } catch (e) {
+      setState(
+        () => error = 'Could not load. Please check your internet connection.',
+      );
+    }
+    if (mounted) setState(() => loading = false);
+  }
+
+  Widget _row(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(label, style: const TextStyle(color: AppColors.muted)),
+          ),
+          const SizedBox(width: 12),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final d = data;
+    final testList = (d?['tests'] as List?) ?? const [];
+    return Scaffold(
+      appBar: AppBar(title: const Text('My child')),
+      body: ListView(
+        padding: const EdgeInsets.all(AppSpace.lg),
+        children: [
+          const Text(
+            'Enter the access code given by your centre.',
+            style: TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: AppSpace.md),
+          TextField(
+            controller: code,
+            textCapitalization: TextCapitalization.characters,
+            decoration: const InputDecoration(
+              hintText: 'ABCD2345',
+              prefixIcon: Icon(Icons.key),
+            ),
+            onSubmitted: (_) => _lookup(),
+          ),
+          const SizedBox(height: AppSpace.md),
+          FilledButton(
+            onPressed: loading ? null : _lookup,
+            child: Text(loading ? 'Loading...' : 'View record'),
+          ),
+          if (error != null) ...[
+            const SizedBox(height: AppSpace.md),
+            Text(error!, style: TextStyle(color: AppTint.danger(context))),
+          ],
+          if (d != null) ...[
+            const SizedBox(height: AppSpace.xl),
+            Text(
+              (d['name'] ?? '').toString(),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: AppSpace.sm),
+            _row('Centre', (d['centre'] ?? '').toString()),
+            if ((d['className'] ?? '').toString().isNotEmpty)
+              _row('Class', d['className'].toString()),
+            if ((d['batch'] ?? '').toString().isNotEmpty)
+              _row(
+                (d['groupWord'] ?? 'Batch').toString(),
+                d['batch'].toString(),
+              ),
+            const Divider(height: 26),
+            const Text(
+              'Attendance',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            _row(
+              'Present',
+              '${d['present']}/${d['total']} days (${d['pct']}%)',
+            ),
+            const Divider(height: 26),
+            const Text('Fees', style: TextStyle(fontWeight: FontWeight.bold)),
+            _row('Plan', (d['feePeriod'] ?? '').toString()),
+            _row('Total', 'Rs ${_n(d['fee'])}'),
+            _row('Paid', 'Rs ${_n(d['paid'])}'),
+            _row('Pending', 'Rs ${_n(d['due'])}'),
+            if (testList.isNotEmpty) ...[
+              const Divider(height: 26),
+              const Text(
+                'Test marks',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              for (final t in testList)
+                _row(
+                  (t['name'] ?? '').toString(),
+                  '${_n(t['marks'])}/${_n(t['max'])}',
+                ),
+            ],
+            const SizedBox(height: AppSpace.lg),
+            Text(
+              'Updated: ${(d['updated'] ?? '').toString().replaceFirst('T', ' ').split('.').first}',
+              style: TextStyle(fontSize: 11, color: AppTint.faint(context)),
+            ),
+          ],
+        ],
       ),
     );
   }
