@@ -50,6 +50,14 @@ void _toast(BuildContext context, String msg) {
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 }
 
+/// Short, single-line version of an error message for display.
+String _shortErr(String? e) {
+  if (e == null || e.trim().isEmpty) return '';
+  var s = e.replaceAll('\n', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (s.length > 110) s = '${s.substring(0, 110)}...';
+  return s;
+}
+
 Future<void> payUpi(
   BuildContext context,
   String upiId,
@@ -353,24 +361,20 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     );
                   }
-                  final String msg;
-                  if (!store.firebaseReady) {
-                    msg = tr('cloud_connecting');
-                  } else if (store.cloudStatus == 'saved') {
-                    msg = tr('cloud_saved');
-                  } else if (store.cloudStatus == 'restored') {
-                    msg = tr('cloud_restored');
-                  } else {
-                    msg = tr('cloud_connected');
-                  }
+                  final isErr = store.cloudStatus == 'error';
+                  final label = isErr
+                      ? '${store.cloudLabel} - ${_shortErr(store.cloudError)}'
+                      : store.cloudLabel;
                   return Padding(
                     padding: EdgeInsets.only(top: 6),
                     child: Text(
-                      msg,
+                      label,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 11,
-                        color: AppTint.faint(context),
+                        color: isErr
+                            ? AppTint.danger(context)
+                            : AppTint.faint(context),
                       ),
                     ),
                   );
@@ -704,6 +708,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onPressed: () => openUrl('https://seekhojeeto.github.io/'),
               icon: Icon(Icons.school_outlined),
               label: Text('Learn - Seekho Jeeto (free)'),
+            ),
+            SizedBox(height: 20),
+            Text('Cloud backup', style: TextStyle(fontWeight: FontWeight.bold)),
+            SizedBox(height: 4),
+            Text(widget.store.cloudLabel),
+            SizedBox(height: 2),
+            Text(
+              widget.store.lastSyncLabel,
+              style: TextStyle(fontSize: 12, color: AppTint.faint(context)),
+            ),
+            if (widget.store.cloudError != null) ...[
+              SizedBox(height: 4),
+              Text(
+                _shortErr(widget.store.cloudError),
+                style: TextStyle(fontSize: 11, color: AppTint.danger(context)),
+              ),
+            ],
+            SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () async {
+                await widget.store.syncNow();
+                if (context.mounted) {
+                  _toast(context, widget.store.cloudLabel);
+                }
+              },
+              icon: Icon(Icons.cloud_sync),
+              label: Text('Sync now'),
             ),
             SizedBox(height: 20),
             Text('Licence', style: TextStyle(fontWeight: FontWeight.bold)),

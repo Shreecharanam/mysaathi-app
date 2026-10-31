@@ -7,7 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'lang.dart';
 
-const String appVersion = 'v25';
+const String appVersion = 'v26';
 
 String stampDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
@@ -162,6 +162,7 @@ class AppStore extends ChangeNotifier {
   String? firebaseError;
   String? cloudError;
   String cloudStatus = 'off';
+  DateTime? lastSync;
   String centreName = '';
   String centreType = 'tuition';
   String upiId = '';
@@ -190,6 +191,41 @@ class AppStore extends ChangeNotifier {
   bool get loggedIn => uid.isNotEmpty;
   bool get centreOpen => accountKey.isNotEmpty;
   bool get isShop => centreType == 'shop';
+
+  // ---------- cloud status ----------
+  String get cloudLabel {
+    if (!firebaseReady) return 'Cloud: not connected';
+    switch (cloudStatus) {
+      case 'saving':
+        return 'Cloud: saving...';
+      case 'saved':
+        return 'Cloud: saved';
+      case 'restored':
+        return 'Cloud: restored';
+      case 'error':
+        return 'Cloud: error';
+      case 'empty':
+        return 'Cloud: no data yet';
+      default:
+        return 'Cloud: ready';
+    }
+  }
+
+  String get lastSyncLabel {
+    final s = lastSync;
+    if (s == null) return 'Last synced: never';
+    final hh = s.hour.toString().padLeft(2, '0');
+    final mm = s.minute.toString().padLeft(2, '0');
+    return 'Last synced: ${stampDate(s)} $hh:$mm';
+  }
+
+  Future<void> syncNow() async {
+    cloudStatus = 'saving';
+    cloudError = null;
+    notifyListeners();
+    await pushCloud();
+    await refreshPublicSummaries();
+  }
 
   // ---------- licence / trial ----------
   static const int trialDays = 30;
@@ -542,6 +578,7 @@ class AppStore extends ChangeNotifier {
       return;
     }
     try {
+      cloudStatus = 'saving';
       await FirebaseFirestore.instance.collection('centres').doc(uid).set({
         'centres': accounts,
         'last': lastCid,
@@ -549,6 +586,7 @@ class AppStore extends ChangeNotifier {
       });
       cloudStatus = 'saved';
       cloudError = null;
+      lastSync = DateTime.now();
     } catch (e) {
       cloudError = e.toString();
       cloudStatus = 'error';
@@ -579,6 +617,7 @@ class AppStore extends ChangeNotifier {
         }
         _fileUid = uid;
         cloudStatus = 'restored';
+        lastSync = DateTime.now();
       } else {
         cloudStatus = 'empty';
       }
