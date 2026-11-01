@@ -8,6 +8,10 @@ import 'store.dart';
 import 'lang.dart';
 import 'theme.dart';
 
+/// Stable download link. Swap the page to the Play Store link later — this
+/// URL stays the same, so installed apps keep sharing the right link.
+const String appLink = 'https://shreecharanam.github.io/mysaathi-legal/app';
+
 MethodChannel _launcher = MethodChannel('mysaathi/launch');
 
 String fmtDate(DateTime d) =>
@@ -154,6 +158,8 @@ String registrationMessage(AppStore store, Student s) {
     'Open the MySaathi app, tap "Parent? View your child record" and enter '
     'this code to see attendance, fees and marks.',
   );
+  b.writeln('');
+  b.writeln('Download the app: $appLink');
   if (store.centrePhone.isNotEmpty) {
     b.writeln('');
     b.writeln('Centre: ${store.centrePhone}');
@@ -1653,6 +1659,7 @@ class _StudentsTabState extends State<StudentsTab> {
         '${store.centreName}\n\n'
         'You can now see the record of ${s.name} in the MySaathi app.\n'
         'Access code: $code\n\n'
+        'Download the app: $appLink\n\n'
         'Open the app, tap Parent view, and enter this code.';
     await showDialog(
       context: context,
