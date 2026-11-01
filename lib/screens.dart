@@ -1047,13 +1047,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 },
               ),
-            IconButton(
-              icon: Icon(Icons.swap_horiz),
-              tooltip: tr('switch_centre'),
-              onPressed: () {
-                widget.store.openChooser();
-              },
-            ),
+            if (widget.store.accounts.length > 1)
+              IconButton(
+                icon: Icon(Icons.swap_horiz),
+                tooltip: tr('switch_centre'),
+                onPressed: () {
+                  widget.store.openChooser();
+                },
+              ),
             IconButton(
               icon: Icon(Icons.settings),
               tooltip: 'Settings',
@@ -2935,11 +2936,13 @@ class CentreChooserScreen extends StatelessWidget {
                     );
                   },
                 ),
-          floatingActionButton: FloatingActionButton.extended(
-            onPressed: () => _add(context),
-            icon: const Icon(Icons.add),
-            label: Text(tr('new_centre')),
-          ),
+          floatingActionButton: store.accounts.isEmpty
+              ? FloatingActionButton.extended(
+                  onPressed: () => _add(context),
+                  icon: const Icon(Icons.add),
+                  label: Text(tr('new_centre')),
+                )
+              : null,
         );
       },
     );
