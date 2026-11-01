@@ -134,6 +134,131 @@ String studentReport(AppStore store, Student s) {
   return b.toString();
 }
 
+/// WhatsApp message sent to the parent right after registration.
+String registrationMessage(AppStore store, Student s) {
+  final b = StringBuffer();
+  b.writeln(store.centreName);
+  b.writeln('Registration confirmed');
+  b.writeln('');
+  b.writeln('Student: ${s.name}');
+  if (s.className.isNotEmpty) b.writeln('Class: ${s.className}');
+  if (s.batch.isNotEmpty) b.writeln('${store.groupWord()}: ${s.batch}');
+  if (s.joinDate.isNotEmpty) b.writeln('Joined: ${s.joinDate}');
+  b.writeln(
+    'Fees: Rs ${s.fee.toStringAsFixed(0)} (${periodLabel(s.feePeriod)})',
+  );
+  b.writeln('');
+  b.writeln('Parent access code: ${s.accessCode}');
+  b.writeln('');
+  b.writeln(
+    'Open the MySaathi app, tap "Parent? View your child record" and enter '
+    'this code to see attendance, fees and marks.',
+  );
+  if (store.centrePhone.isNotEmpty) {
+    b.writeln('');
+    b.writeln('Centre: ${store.centrePhone}');
+  }
+  return b.toString();
+}
+
+/// Shown right after a new student is added: details + access code + WhatsApp.
+Future<void> showRegistrationDialog(
+  BuildContext context,
+  AppStore store,
+  Student s,
+) async {
+  final phone = s.parentPhone.isNotEmpty ? s.parentPhone : s.phone;
+  final msg = registrationMessage(store, s);
+
+  Widget kv(String k, String v) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 78,
+          child: Text(k, style: TextStyle(color: AppTint.faint(context))),
+        ),
+        Expanded(
+          child: Text(v, style: const TextStyle(fontWeight: FontWeight.w600)),
+        ),
+      ],
+    ),
+  );
+
+  await showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Registered'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            kv('Name', s.name),
+            if (s.className.isNotEmpty) kv('Class', s.className),
+            if (s.batch.isNotEmpty) kv(store.groupWord(), s.batch),
+            kv(
+              'Fees',
+              'Rs ${s.fee.toStringAsFixed(0)} ${periodLabel(s.feePeriod)}',
+            ),
+            if (s.joinDate.isNotEmpty) kv('Joined', s.joinDate),
+            if (s.parentPhone.isNotEmpty) kv('Parent', s.parentPhone),
+            const Divider(height: 22),
+            Text(
+              'Parent access code',
+              style: TextStyle(fontSize: 12, color: AppTint.faint(context)),
+            ),
+            const SizedBox(height: 4),
+            SelectableText(
+              s.accessCode,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 3,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'The parent can see attendance, fees and marks with this code.',
+              style: TextStyle(fontSize: 12, color: AppTint.faint(context)),
+            ),
+            if (phone.isEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'No phone number saved for this student.',
+                style: TextStyle(fontSize: 12, color: AppTint.danger(context)),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Done'),
+        ),
+        TextButton(
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: s.accessCode));
+            if (context.mounted) _toast(context, 'Code copied');
+          },
+          child: const Text('Copy code'),
+        ),
+        FilledButton(
+          onPressed: phone.isEmpty
+              ? null
+              : () {
+                  Navigator.pop(ctx);
+                  sendWhatsApp(context, phone, msg);
+                },
+          child: const Text('WhatsApp'),
+        ),
+      ],
+    ),
+  );
+}
+
 /// Dialog to enter an activation code after payment.
 Future<void> showActivateDialog(BuildContext context, AppStore store) async {
   final c = TextEditingController();
@@ -791,11 +916,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
 
-  void _addStudent() {
-    showDialog(
+  Future<void> _addStudent() async {
+    final s = await showDialog<Student>(
       context: context,
       builder: (_) => AddPersonDialog(store: widget.store),
     );
+    if (s == null || !mounted) return;
+    await widget.store.ensureAccessCode(s);
+    if (!mounted) return;
+    await showRegistrationDialog(context, widget.store, s);
   }
 
   void _newBill() {
@@ -1439,10 +1568,11 @@ class _AddPersonDialogState extends State<AddPersonDialog> {
             );
             if (widget.edit == null) {
               store.addStudent(s);
+              Navigator.pop(context, s);
             } else {
               store.updateStudent(s);
+              Navigator.pop(context);
             }
-            Navigator.pop(context);
           },
           child: Text(widget.edit == null ? 'Add' : 'Save'),
         ),
