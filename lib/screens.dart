@@ -265,33 +265,96 @@ Future<void> showRegistrationDialog(
   );
 }
 
-/// Dialog to enter an activation code after payment.
+/// Payment + activation details for the owner.
+const String ownerUpi = 'ms864403-1@oksbi';
+const String ownerWhatsApp = '9416768823';
+
+String _activationRequest(AppStore store, int price) {
+  final id = store.uid.length > 8 ? store.uid.substring(0, 8) : store.uid;
+  return 'MySaathi activation request\n'
+      'Centre: ${store.centreName}\n'
+      'Account ID: $id\n'
+      'Plan: 1 year - Rs $price\n'
+      'Paid by UPI to $ownerUpi\n'
+      'Please send my activation code.';
+}
+
 Future<void> showActivateDialog(BuildContext context, AppStore store) async {
   final c = TextEditingController();
+  final price = store.licenceActive
+      ? AppStore.priceRenewal
+      : AppStore.priceFirstYear;
+
   await showDialog(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Activate'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            store.licenceLabel,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Enter the activation code you received after payment.',
-            style: TextStyle(fontSize: 12),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: c,
-            textCapitalization: TextCapitalization.characters,
-            decoration: const InputDecoration(hintText: 'MS-20271012-1234'),
-          ),
-        ],
+      title: const Text('Activation'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              store.licenceLabel,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Yearly plan: Rs $price',
+              style: const TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            Text('UPI: $ownerUpi', style: const TextStyle(fontSize: 13)),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: () =>
+                      payUpi(context, ownerUpi, 'MySaathi', price.toDouble()),
+                  icon: const Icon(Icons.currency_rupee, size: 18),
+                  label: Text('Pay Rs $price'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => sendWhatsApp(
+                    context,
+                    ownerWhatsApp,
+                    _activationRequest(store, price),
+                  ),
+                  icon: const Icon(Icons.chat, size: 18),
+                  label: const Text('Send request'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    await Clipboard.setData(
+                      const ClipboardData(text: ownerUpi),
+                    );
+                    if (context.mounted) _toast(context, 'UPI ID copied');
+                  },
+                  icon: const Icon(Icons.copy, size: 18),
+                  label: const Text('Copy UPI'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Refer 2 centres and get one year free.',
+              style: TextStyle(fontSize: 12, color: AppTint.faint(context)),
+            ),
+            const Divider(height: 26),
+            const Text(
+              'Activation code (after payment)',
+              style: TextStyle(fontSize: 12),
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              controller: c,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(hintText: 'MS-20271012-1234'),
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(

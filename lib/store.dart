@@ -7,8 +7,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'lang.dart';
 
-const String appVersion = 'v30';
-const int appVersionCode = 30;
+const String appVersion = 'v31';
+const int appVersionCode = 31;
 
 String stampDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
@@ -268,7 +268,10 @@ class AppStore extends ChangeNotifier {
   }
 
   // ---------- licence / trial ----------
-  static const int trialDays = 30;
+  /// Everyone is free until this date. After that a paid activation is needed.
+  static final DateTime freeUntil = DateTime(2027, 3, 31);
+  static const int priceFirstYear = 999;
+  static const int priceRenewal = 1299;
 
   String get todayIso {
     final n = DateTime.now();
@@ -283,18 +286,11 @@ class AppStore extends ChangeNotifier {
     if (paid != null && now.isBefore(paid.add(const Duration(days: 1)))) {
       return true;
     }
-    final t = _parseDay(trialStart);
-    if (t == null) return true; // no trial info yet -> fresh trial
-    return now.isBefore(t.add(const Duration(days: trialDays)));
+    return !now.isAfter(freeUntil);
   }
 
   int get trialDaysLeft {
-    final t = _parseDay(trialStart);
-    if (t == null) return trialDays;
-    final left = t
-        .add(const Duration(days: trialDays))
-        .difference(DateTime.now())
-        .inDays;
+    final left = freeUntil.difference(DateTime.now()).inDays;
     return left < 0 ? 0 : left;
   }
 
@@ -304,8 +300,10 @@ class AppStore extends ChangeNotifier {
     if (paid != null && now.isBefore(paid.add(const Duration(days: 1)))) {
       return 'Active till ${stampDate(paid)}';
     }
-    if (licenceActive) return 'Trial - $trialDaysLeft day(s) left';
-    return 'Trial over - activation needed';
+    if (!now.isAfter(freeUntil)) {
+      return 'Free till ${stampDate(freeUntil)}';
+    }
+    return 'Free period over - activation needed';
   }
 
   /// Offline activation code: MS-YYYYMMDD-XXXX (XXXX = checksum of date).
