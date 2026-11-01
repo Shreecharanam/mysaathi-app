@@ -922,6 +922,51 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await widget.store.checkUpdate();
+      if (!mounted) return;
+      if (widget.store.hasUpdate &&
+          widget.store.dismissedVersion != '${widget.store.remoteVersion}') {
+        _showUpdateDialog();
+      }
+    });
+  }
+
+  Future<void> _showUpdateDialog() async {
+    final store = widget.store;
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Update available'),
+        content: Text(
+          store.remoteUpdateNotes.isNotEmpty ? store.remoteUpdateNotes : 'A newer version of MySaathi is available. Please update to get the latest fixes and features.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Update now'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (go == true) {
+      final url = store.remoteUpdateUrl.isNotEmpty
+          ? store.remoteUpdateUrl
+          : appLink;
+      await openUrl(url);
+    } else {
+      store.dismissUpdate('${store.remoteVersion}');
+    }
+  }
+
   Future<void> _addStudent() async {
     final s = await showDialog<Student>(
       context: context,

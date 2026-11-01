@@ -7,7 +7,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'lang.dart';
 
-const String appVersion = 'v29';
+const String appVersion = 'v30';
+const int appVersionCode = 30;
 
 String stampDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
@@ -158,6 +159,10 @@ class AppStore extends ChangeNotifier {
   String lastCid = '';
   String trialStart = '';
   String paidTill = '';
+  String dismissedVersion = '';
+  int remoteVersion = 0;
+  String remoteUpdateUrl = '';
+  String remoteUpdateNotes = '';
   bool firebaseReady = false;
   String? firebaseError;
   String? cloudError;
@@ -225,6 +230,41 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
     await pushCloud();
     await refreshPublicSummaries();
+  }
+
+  // ---------- app update check ----------
+  static const String _updateUrl =
+      'https://shreecharanam.github.io/mysaathi-legal/version.json';
+
+  bool get hasUpdate => remoteVersion > appVersionCode;
+
+  void dismissUpdate(String v) {
+    dismissedVersion = v;
+    save();
+  }
+
+  Future<void> checkUpdate() async {
+    try {
+      final client = HttpClient();
+      client.connectionTimeout = const Duration(seconds: 8);
+      final req = await client.getUrl(Uri.parse(_updateUrl));
+      final res = await req.close();
+      if (res.statusCode != 200) {
+        client.close();
+        return;
+      }
+      final body = await res.transform(utf8.decoder).join();
+      client.close();
+      final m = jsonDecode(body);
+      if (m is Map) {
+        remoteVersion = int.tryParse('${m['version']}') ?? 0;
+        remoteUpdateUrl = (m['url'] ?? '').toString();
+        remoteUpdateNotes = (m['notes'] ?? '').toString();
+        notifyListeners();
+      }
+    } catch (_) {
+      // offline or blocked - ignore quietly
+    }
   }
 
   // ---------- licence / trial ----------
@@ -523,6 +563,7 @@ class AppStore extends ChangeNotifier {
             'last': lastCid,
             'trialStart': trialStart,
             'paidTill': paidTill,
+            'dismissedVersion': dismissedVersion,
           }),
         );
       }
@@ -551,6 +592,7 @@ class AppStore extends ChangeNotifier {
               lastCid = (m['last'] ?? '').toString();
               trialStart = (m['trialStart'] ?? '').toString();
               paidTill = (m['paidTill'] ?? '').toString();
+              dismissedVersion = (m['dismissedVersion'] ?? '').toString();
               if (lastCid.isNotEmpty && accounts.containsKey(lastCid)) {
                 accountKey = lastCid;
                 pullActive();
