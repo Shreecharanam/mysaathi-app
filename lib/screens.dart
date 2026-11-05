@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -270,6 +272,99 @@ Future<void> showRegistrationDialog(
       ],
     ),
   );
+}
+
+Future<bool> _installApk(String path) async {
+  try {
+    final ok = await _launcher.invokeMethod<bool>('installApk', {'path': path});
+    return ok ?? false;
+  } catch (e) {
+    return false;
+  }
+}
+
+/// Downloads the new APK inside the app, then opens the Android installer.
+Future<void> downloadAndInstallApk(BuildContext context, AppStore store) async {
+  final url = store.remoteUpdateUrl.isNotEmpty
+      ? store.remoteUpdateUrl
+      : appLink;
+  final progress = ValueNotifier<double>(0);
+  var closed = false;
+
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Downloading update'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ValueListenableBuilder<double>(
+            valueListenable: progress,
+            builder: (_, v, __) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LinearProgressIndicator(value: v <= 0 ? null : v),
+                const SizedBox(height: 10),
+                Text(
+                  v <= 0 ? 'Starting...' : '${(v * 100).round()}%',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Please keep the app open.',
+            style: TextStyle(fontSize: 11),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  try {
+    final client = HttpClient();
+    client.connectionTimeout = const Duration(seconds: 25);
+    final req = await client.getUrl(Uri.parse(url));
+    final res = await req.close();
+    final total = res.contentLength;
+    final file = File('${Directory.systemTemp.path}/mysaathi-update.apk');
+    if (file.existsSync()) {
+      file.deleteSync();
+    }
+    final sink = file.openWrite();
+    var got = 0;
+    await for (final chunk in res) {
+      sink.add(chunk);
+      got += chunk.length;
+      if (total > 0) progress.value = got / total;
+    }
+    await sink.flush();
+    await sink.close();
+    client.close();
+
+    if (context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+      closed = true;
+    }
+
+    final ok = await _installApk(file.path);
+    if (!ok) {
+      if (context.mounted) {
+        _toast(context, 'Opening browser to finish the update');
+      }
+      await openUrl(url);
+    }
+  } catch (e) {
+    if (!closed && context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+    if (context.mounted) {
+      _toast(context, 'Download failed - opening browser');
+    }
+    await openUrl(url);
+  }
 }
 
 /// Payment + activation details for the owner.
@@ -1087,10 +1182,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (!mounted) return;
     if (go == true) {
-      final url = store.remoteUpdateUrl.isNotEmpty
-          ? store.remoteUpdateUrl
-          : appLink;
-      await openUrl(url);
+      await downloadAndInstallApk(context, store);
     } else {
       store.dismissUpdate('${store.remoteVersion}');
     }

@@ -54,6 +54,9 @@ jobs:
           cp android_patch/MainActivity.kt "$DEST"
           echo "Wrote $DEST"
 
+      - name: Allow in-app update install
+        run: python3 tools/patch_install.py
+
       - name: Patch release signing config
         run: python3 tools/patch_signing.py
 

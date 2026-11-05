@@ -7,8 +7,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'lang.dart';
 
-const String appVersion = 'v33';
-const int appVersionCode = 33;
+const String appVersion = 'v34';
+const int appVersionCode = 34;
 
 String stampDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
