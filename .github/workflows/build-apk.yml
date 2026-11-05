@@ -54,6 +54,9 @@ jobs:
           cp android_patch/MainActivity.kt "$DEST"
           echo "Wrote $DEST"
 
+      - name: Apply MySaathi app icon
+        run: python3 tools/patch_icon.py
+
       - name: Allow in-app update install
         run: python3 tools/patch_install.py
 
