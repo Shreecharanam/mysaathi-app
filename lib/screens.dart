@@ -1004,8 +1004,25 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Update available'),
-        content: Text(
-          store.remoteUpdateNotes.isNotEmpty ? store.remoteUpdateNotes : 'A newer version of MySaathi is available. Please update to get the latest fixes and features.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              store.remoteUpdateNotes.isNotEmpty
+                  ? store.remoteUpdateNotes
+                  : 'A newer version of MySaathi is available.',
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'How to update:\n'
+              '1. Tap "Update now" - the download starts\n'
+              '2. When it finishes, open it from the notification bar\n'
+              '3. Tap "Install" (or "Update")\n\n'
+              'Your data stays safe.',
+              style: TextStyle(fontSize: 12, color: AppTint.faint(context)),
+            ),
+          ],
         ),
         actions: [
           TextButton(
