@@ -54,6 +54,13 @@ void _toast(BuildContext context, String msg) {
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 }
 
+/// yyyy-mm-dd -> dd-mm-yyyy
+String _isoToDmy(String s) {
+  final p = s.split('-');
+  if (p.length == 3) return '${p[2]}-${p[1]}-${p[0]}';
+  return s;
+}
+
 /// Short, single-line version of an error message for display.
 String _shortErr(String? e) {
   if (e == null || e.trim().isEmpty) return '';
@@ -578,7 +585,9 @@ class _LoginScreenState extends State<LoginScreen> {
               TextField(
                 controller: _centre,
                 decoration: InputDecoration(
-                  labelText: tr('centre_name'),
+                  labelText: _type == 'school'
+                      ? 'School name'
+                      : tr('centre_name'),
                   helperText: tr('centre_name_help'),
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.store),
@@ -599,6 +608,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   DropdownMenuItem(value: 'gym', child: Text(tr('type_gym'))),
                   DropdownMenuItem(value: 'shop', child: Text(tr('type_shop'))),
+                  DropdownMenuItem(
+                    value: 'school',
+                    child: Text(tr('type_school')),
+                  ),
                   DropdownMenuItem(
                     value: 'other',
                     child: Text(tr('type_other')),
@@ -929,6 +942,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
               icon: Icon(Icons.cloud_sync),
               label: Text('Sync now'),
+            ),
+            SizedBox(height: 20),
+            Text('About', style: TextStyle(fontWeight: FontWeight.bold)),
+            SizedBox(height: 4),
+            Text('Version: $appVersion'),
+            Text(
+              widget.store.firstRun.isEmpty
+                  ? 'Installed on: -'
+                  : 'Installed on: ${_isoToDmy(widget.store.firstRun)}',
+            ),
+            Text(
+              widget.store.hasUpdate
+                  ? 'Update available (v${widget.store.remoteVersion})'
+                  : 'Status: up to date',
+              style: TextStyle(
+                color: widget.store.hasUpdate
+                    ? AppColors.gold
+                    : AppColors.success,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () async {
+                await widget.store.checkUpdate();
+                if (context.mounted) {
+                  _toast(
+                    context,
+                    widget.store.hasUpdate
+                        ? 'Update available (v${widget.store.remoteVersion})'
+                        : 'You are on the latest version',
+                  );
+                }
+              },
+              icon: Icon(Icons.refresh),
+              label: Text('Check for update'),
             ),
             SizedBox(height: 20),
             Text('Licence', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -3003,6 +3052,10 @@ class CentreChooserScreen extends StatelessWidget {
                   DropdownMenuItem(value: 'gym', child: Text(tr('type_gym'))),
                   DropdownMenuItem(value: 'shop', child: Text(tr('type_shop'))),
                   DropdownMenuItem(
+                    value: 'school',
+                    child: Text(tr('type_school')),
+                  ),
+                  DropdownMenuItem(
                     value: 'other',
                     child: Text(tr('type_other')),
                   ),
@@ -3084,6 +3137,7 @@ class CentreChooserScreen extends StatelessWidget {
 IconData _typeIcon(String t) => switch (t) {
   'gym' => Icons.fitness_center,
   'shop' => Icons.storefront,
+  'school' => Icons.account_balance,
   'other' => Icons.category,
   _ => Icons.school,
 };
@@ -3091,6 +3145,7 @@ IconData _typeIcon(String t) => switch (t) {
 String _typeName(String t) => switch (t) {
   'gym' => tr('type_gym'),
   'shop' => tr('type_shop'),
+  'school' => tr('type_school'),
   'other' => tr('type_other'),
   _ => tr('type_tuition'),
 };

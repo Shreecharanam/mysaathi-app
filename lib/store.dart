@@ -7,8 +7,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'lang.dart';
 
-const String appVersion = 'v32';
-const int appVersionCode = 32;
+const String appVersion = 'v33';
+const int appVersionCode = 33;
 
 String stampDate(DateTime d) =>
     '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
@@ -159,6 +159,7 @@ class AppStore extends ChangeNotifier {
   String lastCid = '';
   String trialStart = '';
   String paidTill = '';
+  String firstRun = '';
   String dismissedVersion = '';
   int remoteVersion = 0;
   String remoteUpdateUrl = '';
@@ -561,6 +562,7 @@ class AppStore extends ChangeNotifier {
             'last': lastCid,
             'trialStart': trialStart,
             'paidTill': paidTill,
+            'firstRun': firstRun,
             'dismissedVersion': dismissedVersion,
           }),
         );
@@ -590,6 +592,7 @@ class AppStore extends ChangeNotifier {
               lastCid = (m['last'] ?? '').toString();
               trialStart = (m['trialStart'] ?? '').toString();
               paidTill = (m['paidTill'] ?? '').toString();
+              firstRun = (m['firstRun'] ?? '').toString();
               dismissedVersion = (m['dismissedVersion'] ?? '').toString();
               if (lastCid.isNotEmpty && accounts.containsKey(lastCid)) {
                 accountKey = lastCid;
@@ -673,6 +676,7 @@ class AppStore extends ChangeNotifier {
     uid = u;
     sessionUid = u;
     if (trialStart.isEmpty) trialStart = todayIso;
+    if (firstRun.isEmpty) firstRun = todayIso;
     if (_fileUid != u) {
       accounts.clear();
       accountKey = '';
@@ -698,6 +702,7 @@ class AppStore extends ChangeNotifier {
     uid = key;
     sessionUid = key;
     if (trialStart.isEmpty) trialStart = todayIso;
+    if (firstRun.isEmpty) firstRun = todayIso;
     if (_fileUid != key) {
       accounts.clear();
       accountKey = '';
@@ -858,6 +863,7 @@ class AppStore extends ChangeNotifier {
   String groupWord() => switch (centreType) {
     'gym' => 'Plan',
     'shop' => 'Item',
+    'school' => 'Class',
     'other' => 'Group',
     _ => 'Batch',
   };
@@ -865,6 +871,7 @@ class AppStore extends ChangeNotifier {
   String groupWordPlural() => switch (centreType) {
     'gym' => 'Plans',
     'shop' => 'Items',
+    'school' => 'Classes',
     'other' => 'Groups',
     _ => 'Batches',
   };
