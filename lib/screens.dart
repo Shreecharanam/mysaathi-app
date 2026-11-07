@@ -553,11 +553,17 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _create() async {
     final store = widget.store;
     if (!store.firebaseReady) {
-      await store.loginLocal(_name, _type);
+      _toast(
+        context,
+        'No connection. Please check your internet and try again.',
+      );
       return;
     }
-    if (_email.text.trim().isEmpty || _password.text.length < 6) {
-      _toast(context, tr('err_email_pw'));
+    if (_email.text.trim().isEmpty || _password.text.length < 8) {
+      _toast(
+        context,
+        'Enter a valid email and a password of at least 8 characters.',
+      );
       return;
     }
     setState(() => _busy = true);
@@ -566,6 +572,9 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _email.text.trim(),
         password: _password.text,
       );
+      try {
+        await cred.user?.sendEmailVerification();
+      } catch (_) {}
       await store.loginWithUid(cred.user!.uid, _name, _type);
     } catch (e) {
       if (mounted) _toast(context, '${tr('err_account')}: $e');
@@ -573,10 +582,28 @@ class _LoginScreenState extends State<LoginScreen> {
     if (mounted) setState(() => _busy = false);
   }
 
+  Future<void> _forgotPassword() async {
+    final email = _email.text.trim();
+    if (email.isEmpty) {
+      _toast(context, 'Type your email above, then tap Forgot password.');
+      return;
+    }
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (mounted) _toast(context, 'Password reset link sent to $email');
+    } catch (e) {
+      if (mounted)
+        _toast(context, 'Could not send reset link. Check the email.');
+    }
+  }
+
   Future<void> _login() async {
     final store = widget.store;
     if (!store.firebaseReady) {
-      await store.loginLocal(_name, _type);
+      _toast(
+        context,
+        'No connection. Please check your internet and try again.',
+      );
       return;
     }
     if (_email.text.trim().isEmpty || _password.text.isEmpty) {
@@ -747,6 +774,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   labelText: tr('password'),
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.lock),
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _forgotPassword,
+                  child: const Text('Forgot password?'),
                 ),
               ),
               SizedBox(height: 16),
